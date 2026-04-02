@@ -1,9 +1,11 @@
+import os
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 from auth.auth import login_user, register_user
 from auth.mfa import generate_otp
 from crypto.signature import sign_message, verify_signature
-
+from tkinter import filedialog
+from crypto.signature import sign_file, verify_file
 
 def start_app():
 
@@ -56,32 +58,39 @@ def start_app():
     # 📜 MOSTRAR CERTIFICADO
     def show_certificate(username):
         try:
-            with open(f"crypto/{username}_cert.json", "r") as f:
-                cert = f.read()
+            if not os.path.exists(f"crypto/{username}_private.pem"):
+                raise Exception("No existen claves para este usuario")
 
-            messagebox.showinfo("Certificado", cert)
-        except:
-            messagebox.showerror("Error", "No se encontró el certificado")
-
-    # 🖥️ DASHBOARD
+            with open(f"crypto/{username}_private.pem", "rb") as f:
+                private_key = serialization.load_pem_private_key(
+                f.read(),
+                password=None
+            )
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+            
+            
+    #DASHBOARD
     def open_dashboard(username):
+        from tkinter import filedialog
+
         dashboard = tk.Toplevel()
         dashboard.title("Dashboard")
 
-        center_window(dashboard, 450, 400)
+        center_window(dashboard, 450, 500)
 
         tk.Label(dashboard, text=f"Bienvenid@ {username}",
-                 font=("Arial", 14)).pack(pady=10)
+                font=("Arial", 14)).pack(pady=10)
 
-        tk.Button(dashboard, text="Ver Certificado", width=20,
-                  command=lambda: show_certificate(username)).pack(pady=5)
+        tk.Button(dashboard, text="Ver Certificado",
+                command=lambda: show_certificate(username)).pack(pady=5)
 
         # 📩 Campo de mensaje
         tk.Label(dashboard, text="Mensaje a firmar").pack(pady=5)
         entry_message = tk.Entry(dashboard, width=30)
         entry_message.pack()
 
-        # 🔐 Firmar
+        # 🔐 Firmar texto
         def sign():
             message = entry_message.get()
 
@@ -92,7 +101,7 @@ def start_app():
             sign_message(username, message)
             messagebox.showinfo("Firma", "Mensaje firmado correctamente")
 
-        # 🔍 Verificar
+        # 🔍 Verificar texto
         def verify():
             message = entry_message.get()
 
@@ -105,12 +114,45 @@ def start_app():
             else:
                 messagebox.showerror("Verificación", "Firma inválida ❌")
 
-        tk.Button(dashboard, text="Firmar", command=sign).pack(pady=5)
-        tk.Button(dashboard, text="Verificar Firma", command=verify).pack(pady=5)
+        tk.Button(dashboard, text="Firmar Texto", command=sign).pack(pady=5)
+        tk.Button(dashboard, text="Verificar Texto", command=verify).pack(pady=5)
+
+        # =========================
+        # 🔥 BOTONES DE ARCHIVO
+        # =========================
+
+        def sign_file_ui():
+            file_path = filedialog.askopenfilename()
+
+            if not file_path:
+                return
+
+            sign_file(username, file_path)
+            messagebox.showinfo("Firma", "Archivo firmado correctamente")
+
+        def verify_file_ui():
+            file_path = filedialog.askopenfilename()
+
+            if not file_path:
+                return
+
+            if verify_file(username, file_path):
+                messagebox.showinfo("Verificación", "Firma válida ✅")
+            else:
+                messagebox.showerror("Verificación", "Firma inválida ❌")
+
+        tk.Button(dashboard, text="Firmar Archivo",
+                command=sign_file_ui).pack(pady=5)
+
+        tk.Button(dashboard, text="Verificar Archivo",
+                command=verify_file_ui).pack(pady=5)
+
+        # =========================
 
         tk.Button(dashboard, text="Cerrar sesión",
-                  command=dashboard.destroy).pack(pady=10)
-
+                command=dashboard.destroy).pack(pady=10)
+    
+  
     # 🖥️ VENTANA PRINCIPAL
     root = tk.Tk()
     root.title("Sistema Casa Monarca")
@@ -134,4 +176,5 @@ def start_app():
     tk.Button(root, text="Login", width=20, command=login).pack(pady=15)
     tk.Button(root, text="Registrar", width=20, command=register).pack()
 
+  
     root.mainloop()
