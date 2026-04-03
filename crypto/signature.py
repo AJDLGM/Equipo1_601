@@ -1,12 +1,20 @@
 import os
+from datetime import datetime
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
-from datetime import datetime
+from config.paths import get_user_dir
 
 
 def sign_message(username, message):
 
-    with open(f"crypto/{username}_private.pem", "rb") as f:
+    dirs = get_user_dir(username)
+
+    private_path = os.path.join(
+        dirs["keys"],
+        f"{username}_private.pem"
+    )
+
+    with open(private_path, "rb") as f:
         private_key = serialization.load_pem_private_key(
             f.read(),
             password=None
@@ -22,17 +30,28 @@ def sign_message(username, message):
     )
 
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-    signature_file = f"crypto/{username}_signature_{timestamp}.sig"
 
-    with open(signature_file, "wb") as f:
+    signature_path = os.path.join(
+        dirs["sign"],
+        f"signature_{timestamp}.sig"
+    )
+
+    with open(signature_path, "wb") as f:
         f.write(signature)
 
-    return signature_file
+    return signature_path
 
 
 def verify_signature(username, message, signature_file):
 
-    with open(f"crypto/{username}_public.pem", "rb") as f:
+    dirs = get_user_dir(username)
+
+    public_path = os.path.join(
+        dirs["keys"],
+        f"{username}_public.pem"
+    )
+
+    with open(public_path, "rb") as f:
         public_key = serialization.load_pem_public_key(f.read())
 
     with open(signature_file, "rb") as f:
@@ -56,7 +75,14 @@ def verify_signature(username, message, signature_file):
 
 def sign_file(username, file_path):
 
-    with open(f"crypto/{username}_private.pem", "rb") as f:
+    dirs = get_user_dir(username)
+
+    private_path = os.path.join(
+        dirs["keys"],
+        f"{username}_private.pem"
+    )
+
+    with open(private_path, "rb") as f:
         private_key = serialization.load_pem_private_key(
             f.read(),
             password=None
@@ -86,7 +112,14 @@ def verify_file(username, file_path):
 
     try:
 
-        with open(f"crypto/{username}_public.pem", "rb") as f:
+        dirs = get_user_dir(username)
+
+        public_path = os.path.join(
+            dirs["keys"],
+            f"{username}_public.pem"
+        )
+
+        with open(public_path, "rb") as f:
             public_key = serialization.load_pem_public_key(f.read())
 
         with open(file_path, "rb") as f:

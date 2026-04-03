@@ -1,8 +1,14 @@
 import json
 import hashlib
+import os
 from datetime import datetime, timedelta
+from config.paths import get_user_dir
+
 
 def create_certificate(username):
+
+    dirs = get_user_dir(username)
+
     cert = {
         "user": username,
         "issued_at": str(datetime.utcnow()),
@@ -11,12 +17,16 @@ def create_certificate(username):
 
     cert_str = json.dumps(cert)
 
-    # hash del certificado
     cert_hash = hashlib.sha256(cert_str.encode()).hexdigest()
 
     cert["signature"] = cert_hash
 
-    with open(f"crypto/{username}_cert.json", "w") as f:
+    cert_path = os.path.join(
+        dirs["certs"],
+        f"{username}_cert.json"
+    )
+
+    with open(cert_path, "w") as f:
         json.dump(cert, f, indent=4)
 
     return True

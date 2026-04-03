@@ -1,18 +1,31 @@
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
+from config.paths import get_user_dir
+import os
+
 
 def generate_keys(username):
-    # Generar llave privada
+
+    dirs = get_user_dir(username)
+
     private_key = rsa.generate_private_key(
         public_exponent=65537,
         key_size=2048
     )
 
-    # Obtener llave pública
     public_key = private_key.public_key()
 
-    # Guardar llave privada
-    with open(f"crypto/{username}_private.pem", "wb") as f:
+    private_path = os.path.join(
+        dirs["keys"],
+        f"{username}_private.pem"
+    )
+
+    public_path = os.path.join(
+        dirs["keys"],
+        f"{username}_public.pem"
+    )
+
+    with open(private_path, "wb") as f:
         f.write(
             private_key.private_bytes(
                 encoding=serialization.Encoding.PEM,
@@ -21,8 +34,7 @@ def generate_keys(username):
             )
         )
 
-    # Guardar llave pública
-    with open(f"crypto/{username}_public.pem", "wb") as f:
+    with open(public_path, "wb") as f:
         f.write(
             public_key.public_bytes(
                 encoding=serialization.Encoding.PEM,
