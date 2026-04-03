@@ -1,11 +1,16 @@
+import json
 import os
 import tkinter as tk
-from tkinter import messagebox, simpledialog
+from tkinter import messagebox, simpledialog, filedialog
+
 from auth.auth import login_user, register_user
 from auth.mfa import generate_otp
-from crypto.signature import sign_message, verify_signature
-from tkinter import filedialog
-from crypto.signature import sign_file, verify_file
+from auth.permissions import has_permission
+
+from crypto.signature import sign_message, verify_signature, sign_file, verify_file
+
+from db.admin_queries import get_all_users, update_user_role, get_logs
+
 
 def start_app():
 
@@ -18,163 +23,256 @@ def start_app():
 
         root.geometry(f"{width}x{height}+{x}+{y}")
 
-    # 🔐 LOGIN
+    # LOGIN
     def login():
+
         user = entry_user.get().strip()
         password = entry_pass.get().strip()
 
-        if not user or not password:
-            messagebox.showwarning("Advertencia", "Completa todos los campos")
-            return
+        success, role = login_user(user, password)
 
-        if login_user(user, password):
+        if success:
+
             otp = generate_otp()
             messagebox.showinfo("OTP", f"Tu código es: {otp}")
 
             user_otp = simpledialog.askstring("Verificación", "Ingresa el código OTP:")
 
             if user_otp == otp:
-                messagebox.showinfo("Acceso", "Login exitoso ✅")
-                open_dashboard(user)
+
+                messagebox.showinfo("Acceso", "Login exitoso")
+
+                open_dashboard(user, role)
+
             else:
-                messagebox.showerror("Error", "OTP incorrecto ❌")
+                messagebox.showerror("Error", "OTP incorrecto")
+
         else:
             messagebox.showerror("Error", "Credenciales incorrectas")
 
-    # 📝 REGISTER
+    # REGISTER
     def register():
+
         user = entry_user.get().strip()
         password = entry_pass.get().strip()
 
-        if not user or not password:
-            messagebox.showwarning("Advertencia", "Completa todos los campos")
-            return
-
         if register_user(user, password):
-            messagebox.showinfo("Éxito", "Usuario registrado correctamente")
+            messagebox.showinfo("Éxito", "Usuario registrado")
         else:
             messagebox.showerror("Error", "El usuario ya existe")
 
-    # 📜 MOSTRAR CERTIFICADO
+    # MOSTRAR CERTIFICADO
     def show_certificate(username):
-        try:
-            if not os.path.exists(f"crypto/{username}_private.pem"):
-                raise Exception("No existen claves para este usuario")
 
-            with open(f"crypto/{username}_private.pem", "rb") as f:
-                private_key = serialization.load_pem_private_key(
-                f.read(),
-                password=None
-            )
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
-            
-            
-    #DASHBOARD
-    def open_dashboard(username):
-        from tkinter import filedialog
+        cert_path = f"crypto/{username}_cert.json"
+
+        if not os.path.exists(cert_path):
+            messagebox.showerror("Error", "No existe certificado")
+            return
+
+        with open(cert_path) as f:
+            cert = json.load(f)
+
+        cert_text = (
+            f"Usuario: {cert['user']}\n\n"
+            f"Issued At: {cert['issued_at']}\n\n"
+            f"Expires At: {cert['expires_at']}\n\n"
+            f"Signature: {cert['signature']}"
+        )
+
+        messagebox.showinfo("Certificado", cert_text)
+
+    # DASHBOARD
+    def open_dashboard(username, role):
 
         dashboard = tk.Toplevel()
         dashboard.title("Dashboard")
 
         center_window(dashboard, 450, 500)
 
-        tk.Label(dashboard, text=f"Bienvenid@ {username}",
-                font=("Arial", 14)).pack(pady=10)
+        tk.Label(dashboard, text=f"Bienvenido {username}", font=("Arial", 14)).pack(pady=10)
 
-        tk.Button(dashboard, text="Ver Certificado",
-                command=lambda: show_certificate(username)).pack(pady=5)
+        tk.Label(dashboard, text=f"Rol: {role}", font=("Arial", 10)).pack(pady=5)
 
-        # 📩 Campo de mensaje
-        tk.Label(dashboard, text="Mensaje a firmar").pack(pady=5)
-        entry_message = tk.Entry(dashboard, width=30)
-        entry_message.pack()
+        # CONSULTAR
+        if has_permission(role, "consult"):
 
-        # 🔐 Firmar texto
-        def sign():
-            message = entry_message.get()
+            tk.Button(
+                dashboard,
+                text="Ver Certificado",
+                command=lambda: show_certificate(username)
+            ).pack(pady=5)
 
-            if not message:
-                messagebox.showwarning("Error", "Escribe un mensaje")
-                return
+        # EDITAR
+        if has_permission(role, "edit"):
 
-            sign_message(username, message)
-            messagebox.showinfo("Firma", "Mensaje firmado correctamente")
+            tk.Label(dashboard, text="Mensaje a firmar").pack(pady=5)
 
-        # 🔍 Verificar texto
-        def verify():
-            message = entry_message.get()
+            entry_message = tk.Entry(dashboard, width=30)
+            entry_message.pack()
 
-            if not message:
-                messagebox.showwarning("Error", "Escribe un mensaje")
-                return
+            def sign():
 
-            if verify_signature(username, message):
-                messagebox.showinfo("Verificación", "Firma válida ✅")
-            else:
-                messagebox.showerror("Verificación", "Firma inválida ❌")
+                message = entry_message.get()
 
-        tk.Button(dashboard, text="Firmar Texto", command=sign).pack(pady=5)
-        tk.Button(dashboard, text="Verificar Texto", command=verify).pack(pady=5)
+                if not message:
+                    messagebox.showwarning("Error", "Escribe un mensaje")
+                    return
 
-        # =========================
-        # 🔥 BOTONES DE ARCHIVO
-        # =========================
+                sign_message(username, message)
 
-        def sign_file_ui():
-            file_path = filedialog.askopenfilename()
+                messagebox.showinfo("Firma", "Mensaje firmado")
 
-            if not file_path:
-                return
+            tk.Button(
+                dashboard,
+                text="Firmar Texto",
+                command=sign
+            ).pack(pady=5)
 
-            sign_file(username, file_path)
-            messagebox.showinfo("Firma", "Archivo firmado correctamente")
+            def sign_file_ui():
 
-        def verify_file_ui():
-            file_path = filedialog.askopenfilename()
+                file_path = filedialog.askopenfilename()
 
-            if not file_path:
-                return
+                if not file_path:
+                    return
 
-            if verify_file(username, file_path):
-                messagebox.showinfo("Verificación", "Firma válida ✅")
-            else:
-                messagebox.showerror("Verificación", "Firma inválida ❌")
+                sign_file(username, file_path)
 
-        tk.Button(dashboard, text="Firmar Archivo",
-                command=sign_file_ui).pack(pady=5)
+                messagebox.showinfo("Firma", "Archivo firmado")
 
-        tk.Button(dashboard, text="Verificar Archivo",
-                command=verify_file_ui).pack(pady=5)
+            tk.Button(
+                dashboard,
+                text="Firmar Archivo",
+                command=sign_file_ui
+            ).pack(pady=5)
 
-        # =========================
+        # AUTORIZAR
+        if has_permission(role, "authorize"):
 
-        tk.Button(dashboard, text="Cerrar sesión",
-                command=dashboard.destroy).pack(pady=10)
-    
-  
-    # 🖥️ VENTANA PRINCIPAL
+            def verify():
+
+                message = entry_message.get()
+
+                signature_file = filedialog.askopenfilename(
+                    filetypes=[("Signature", "*.sig")]
+                )
+
+                if verify_signature(username, message, signature_file):
+                    messagebox.showinfo("Verificación", "Firma válida")
+                else:
+                    messagebox.showerror("Verificación", "Firma inválida")
+
+            tk.Button(
+                dashboard,
+                text="Verificar Texto",
+                command=verify
+            ).pack(pady=5)
+
+            def verify_file_ui():
+
+                file_path = filedialog.askopenfilename()
+
+                if verify_file(username, file_path):
+                    messagebox.showinfo("Verificación", "Firma válida")
+                else:
+                    messagebox.showerror("Verificación", "Firma inválida")
+
+            tk.Button(
+                dashboard,
+                text="Verificar Archivo",
+                command=verify_file_ui
+            ).pack(pady=5)
+
+        # ADMIN
+        if role == "admin":
+
+            tk.Label(
+                dashboard,
+                text="Panel de Administrador",
+                font=("Arial", 12, "bold")
+            ).pack(pady=10)
+
+            tk.Button(
+                dashboard,
+                text="Administrar Usuarios",
+                command=open_admin_panel
+            ).pack(pady=5)
+
+            tk.Button(
+                dashboard,
+                text="Ver Logs del Sistema",
+                command=view_logs
+            ).pack(pady=5)
+
+        tk.Button(
+            dashboard,
+            text="Cerrar sesión",
+            command=dashboard.destroy
+        ).pack(pady=15)
+        
+        def open_admin_panel():
+
+            admin_window = tk.Toplevel()
+            admin_window.title("Administración de Usuarios")
+
+            users = get_all_users()
+
+            for user, role in users:
+
+                frame = tk.Frame(admin_window)
+                frame.pack(pady=5)
+
+                tk.Label(frame, text=user, width=15).pack(side="left")
+                tk.Label(frame, text=role, width=15).pack(side="left")
+
+                def make_admin(u=user):
+                    update_user_role(u, "admin")
+                    messagebox.showinfo("Actualizado", f"{u} ahora es admin")
+
+                tk.Button(
+                    frame,
+                    text="Hacer Admin",
+                    command=make_admin
+                ).pack(side="left")
+        
+        def view_logs():
+
+            log_window = tk.Toplevel()
+            log_window.title("Logs del Sistema")
+
+            logs = get_logs()
+
+            text = tk.Text(log_window, width=80, height=25)
+            text.pack()
+
+            for user, action, timestamp in logs:
+
+                line = f"{timestamp} | {user} | {action}\n"
+
+                text.insert(tk.END, line)        
+                        
+
+    # VENTANA PRINCIPAL
     root = tk.Tk()
+
     root.title("Sistema Casa Monarca")
 
-    center_window(root, 500, 400)
-    root.resizable(False, False)
-    root.configure(bg="#f0f0f0")
+    center_window(root)
 
-    tk.Label(root, text="Sistema de Identidad Digital",
-             font=("Arial", 16, "bold"),
-             bg="#f0f0f0").pack(pady=20)
+    tk.Label(root, text="Sistema de Identidad Digital", font=("Arial", 16)).pack(pady=20)
 
-    tk.Label(root, text="Usuario", bg="#f0f0f0").pack(pady=5)
-    entry_user = tk.Entry(root, width=30)
+    tk.Label(root, text="Usuario").pack()
+
+    entry_user = tk.Entry(root)
     entry_user.pack()
 
-    tk.Label(root, text="Contraseña", bg="#f0f0f0").pack(pady=5)
-    entry_pass = tk.Entry(root, show="*", width=30)
+    tk.Label(root, text="Contraseña").pack()
+
+    entry_pass = tk.Entry(root, show="*")
     entry_pass.pack()
 
-    tk.Button(root, text="Login", width=20, command=login).pack(pady=15)
-    tk.Button(root, text="Registrar", width=20, command=register).pack()
+    tk.Button(root, text="Login", command=login).pack(pady=10)
 
-  
+    tk.Button(root, text="Registrar", command=register).pack()
+
     root.mainloop()

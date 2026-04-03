@@ -57,11 +57,12 @@ def register_user(username, password, role="user"):
 
 
 def login_user(username, password):
+
     con = get_connection()
     cur = con.cursor()
 
     cur.execute(
-        "SELECT password_hash, salt FROM users WHERE username=?",
+        "SELECT password_hash, salt, role FROM users WHERE username=?",
         (username,)
     )
 
@@ -69,10 +70,16 @@ def login_user(username, password):
     con.close()
 
     if result:
-        stored_hash, salt = result
+
+        stored_hash, salt, role = result
+
         if verify_password(password, salt, stored_hash):
+
             log_action(username, "LOGIN SUCCESS")
-            return True
+
+            return True, role   # 👈 IMPORTANTE
 
     log_action(username, "LOGIN FAILED")
-    return False
+
+    return False, None   # 👈 IMPORTANTE
+
