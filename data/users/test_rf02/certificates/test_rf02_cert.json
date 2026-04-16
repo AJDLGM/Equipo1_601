@@ -1,8 +1,0 @@
-{
-    "user": "test_rf02",
-    "issued_at": "2026-04-14 07:21:29.681168",
-    "expires_at": "2027-04-14 07:21:29.681168",
-    "signature": "f9cdd7832270412f00889023c0127a63c18814537d9733f9d15f444350a462d4",
-    "status": "revoked",
-    "revocation_reason": "Prueba de revocacion"
-}
