@@ -1,0 +1,8 @@
+{
+    "user": "t_rev",
+    "issued_at": "2026-04-14 07:31:40.928145",
+    "expires_at": "2027-04-14 07:31:40.928145",
+    "signature": "6b9cbed803a820e93e224014af400d108227534c0dc95fa69dff4f35452bff15",
+    "status": "revoked",
+    "revocation_reason": "Test revocacion"
+}

@@ -13,7 +13,24 @@ def create_tables():
         username TEXT UNIQUE,
         password_hash BLOB,
         salt BLOB,
-        role TEXT
+        role TEXT,
+        status TEXT DEFAULT 'active'
+    )
+    """)
+
+    # Migración: agregar columna status si no existe (bases de datos previas)
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'")
+    except Exception:
+        pass
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS revoked_certs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT,
+        reason TEXT,
+        revoked_at TEXT,
+        revoked_by TEXT
     )
     """)
 

@@ -1,0 +1,8 @@
+{
+    "user": "t_baja",
+    "issued_at": "2026-04-14 07:31:41.029652",
+    "expires_at": "2027-04-14 07:31:41.029652",
+    "signature": "c1275a697a91bee897671d61ec978b3e347097506de1fc5d0d6d91f34c7ce4f1",
+    "status": "inactive",
+    "revocation_reason": "Baja administrativa"
+}

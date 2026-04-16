@@ -1,0 +1,8 @@
+{
+    "user": "test_rf03",
+    "issued_at": "2026-04-14 07:21:29.772440",
+    "expires_at": "2027-04-14 07:21:29.772440",
+    "signature": "99f9be7f7ecadbdbeca81b6b450efdaf1441c23d5f62495691b7b84a443daef7",
+    "status": "inactive",
+    "revocation_reason": "Baja administrativa"
+}

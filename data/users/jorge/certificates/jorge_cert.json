@@ -2,5 +2,7 @@
     "user": "jorge",
     "issued_at": "2026-04-03 01:10:12.260913",
     "expires_at": "2027-04-03 01:10:12.260913",
-    "signature": "6854b63fa9f69d5270537778cf4acbbac6ddc133416b1b96f5de73e0ddd06a64"
+    "signature": "6854b63fa9f69d5270537778cf4acbbac6ddc133416b1b96f5de73e0ddd06a64",
+    "status": "inactive",
+    "revocation_reason": "Baja administrativa"
 }
