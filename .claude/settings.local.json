@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile main.py create_users.py auth/auth.py auth/mfa.py auth/permissions.py config/paths.py crypto/certificate.py crypto/keys.py crypto/signature.py db/database.py db/logs.py db/admin_queries.py ui/login_window.py ui/admin_panel.py)"
+    ]
+  }
+}
