@@ -280,11 +280,23 @@ def start_app():
         # AUTORIZAR
         if has_permission(role, "authorize"):
             sec = _card(content, "Verificacion de Firmas")
+
+            tk.Label(sec, text="Mensaje a verificar:",
+                     font=(FONT, 9), bg=CARD, fg=SUBTEXT).pack(anchor="w")
+            verify_wrap = tk.Frame(sec, bg=CARD,
+                                   highlightbackground=BORDER, highlightthickness=1)
+            verify_wrap.pack(fill="x", pady=(2, 10))
+            entry_verify_msg = tk.Entry(
+                verify_wrap, relief="flat", font=(FONT, 10),
+                bg=CARD, fg=TEXT, bd=0, highlightthickness=0,
+            )
+            entry_verify_msg.pack(fill="x", padx=10, pady=7)
+
             row2 = tk.Frame(sec, bg=CARD)
             row2.pack(fill="x")
 
             def verify():
-                msg = entry_message.get()
+                msg = entry_verify_msg.get()
                 sig = filedialog.askopenfilename(
                     parent=dash, filetypes=[("Firma", "*.sig")])
                 if not sig:

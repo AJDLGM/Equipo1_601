@@ -146,9 +146,9 @@ def open_admin_panel(admin_username):
     tab_rev  = tk.Frame(nb, bg=BG)
     tab_baja = tk.Frame(nb, bg=BG)
 
-    nb.add(tab_alta, text="  RF01 — Alta  ")
-    nb.add(tab_rev,  text="  RF02 — Revocacion  ")
-    nb.add(tab_baja, text="  RF03 — Baja  ")
+    nb.add(tab_alta, text="  Alta  ")
+    nb.add(tab_rev,  text="  Revocacion  ")
+    nb.add(tab_baja, text="  Baja  ")
 
     _build_alta(tab_alta, admin_username)
     _build_revocacion(tab_rev, admin_username)
