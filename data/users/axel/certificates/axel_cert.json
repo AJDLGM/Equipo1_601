@@ -1,6 +1,8 @@
 {
     "user": "axel",
-    "issued_at": "2026-04-17 16:33:01.820164",
-    "expires_at": "2027-04-17 16:33:01.820164",
-    "signature": "7c8a5b19e5770d1133b286f921dffa82a1f9b14341c457288e3aa2d5d6581b03"
+    "issued_at": "2026-04-20 22:51:12.782216",
+    "expires_at": "2027-04-20 22:51:12.782216",
+    "signature": "21910c7c2a3cee69883444914c093b79fa0ded3d94aec3989c08f7783846c7fc",
+    "status": "revoked",
+    "revocation_reason": "Prueba"
 }

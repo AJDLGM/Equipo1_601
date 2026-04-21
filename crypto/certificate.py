@@ -11,8 +11,8 @@ def create_certificate(username):
 
     cert = {
         "user": username,
-        "issued_at": str(datetime.utcnow()),
-        "expires_at": str(datetime.utcnow() + timedelta(days=365))
+        "issued_at": str(datetime.now()),
+        "expires_at": str(datetime.now() + timedelta(days=365))
     }
 
     cert_str = json.dumps(cert)

@@ -44,7 +44,7 @@ def revoke_identity(username, reason, revoked_by):
     cur = con.cursor()
     cur.execute(
         "INSERT INTO revoked_certs (username, reason, revoked_at, revoked_by) VALUES (?, ?, ?, ?)",
-        (username, reason, datetime.utcnow().isoformat(), revoked_by)
+        (username, reason, datetime.now().isoformat(), revoked_by)
     )
     cur.execute("UPDATE users SET status='revoked' WHERE username=?", (username,))
     con.commit()
@@ -65,7 +65,7 @@ def deactivate_user(username, admin_user):
     if not cur.fetchone():
         cur.execute(
             "INSERT INTO revoked_certs (username, reason, revoked_at, revoked_by) VALUES (?, ?, ?, ?)",
-            (username, "Baja administrativa", datetime.utcnow().isoformat(), admin_user)
+            (username, "Baja administrativa", datetime.now().isoformat(), admin_user)
         )
     con.commit()
     con.close()
@@ -99,6 +99,32 @@ def _update_cert_status(username, status, reason=""):
             cert["revocation_reason"] = reason
         with open(cert_path, "w") as f:
             json.dump(cert, f, indent=4)
+
+
+def get_pending_users():
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute("SELECT username, role FROM users WHERE status='pending'")
+    users = cur.fetchall()
+    con.close()
+    return users
+
+
+def approve_user(username, admin_username, role="user"):
+    from crypto.keys import generate_keys
+    from crypto.certificate import create_certificate
+
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute("UPDATE users SET status='active', role=? WHERE username=?", (role, username))
+    con.commit()
+    con.close()
+
+    generate_keys(username)
+    create_certificate(username)
+
+    from db.logs import log_action
+    log_action(admin_username, f"APPROVE_USER:{username}")
 
 
 def get_logs():

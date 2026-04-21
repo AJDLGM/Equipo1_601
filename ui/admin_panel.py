@@ -150,14 +150,15 @@ def open_admin_panel(admin_username):
     nb.add(tab_rev,  text="  Revocacion  ")
     nb.add(tab_baja, text="  Baja  ")
 
-    _build_alta(tab_alta, admin_username)
-    _build_revocacion(tab_rev, admin_username)
-    _build_baja(tab_baja, admin_username)
+    refresh_baja = _build_baja(tab_baja, admin_username)
+    refresh_rev  = _build_revocacion(tab_rev, admin_username, on_revoke=refresh_baja)
+    _build_alta(tab_alta, admin_username,
+                on_register=lambda: (refresh_rev(), refresh_baja()))
 
 
 # ── RF01: Alta de identidad ──────────────────────────────────
 
-def _build_alta(parent, admin_username):
+def _build_alta(parent, admin_username, on_register=None):
 
     outer = tk.Frame(parent, bg=BG)
     outer.pack(fill="both", expand=True, padx=24, pady=20)
@@ -239,6 +240,8 @@ def _build_alta(parent, admin_username):
             e_pass.delete(0, tk.END)
             e_pass2.delete(0, tk.END)
             role_var.set("externo")
+            if on_register:
+                on_register()
         else:
             msg_var.set(f"El usuario '{username}' ya existe.")
 
@@ -249,7 +252,7 @@ def _build_alta(parent, admin_username):
 
 # ── RF02: Revocacion de identidad ────────────────────────────
 
-def _build_revocacion(parent, admin_username):
+def _build_revocacion(parent, admin_username, on_revoke=None):
 
     outer = tk.Frame(parent, bg=BG)
     outer.pack(fill="both", expand=True, padx=24, pady=20)
@@ -304,6 +307,8 @@ def _build_revocacion(parent, admin_username):
             e_reason.delete(0, tk.END)
             refresh_users()
             refresh_crl()
+            if on_revoke:
+                on_revoke()
 
     _btn(top_body, "Revocar Certificado", do_revoke,
          bg=DANGER, full=True, pady=9)
@@ -347,6 +352,8 @@ def _build_revocacion(parent, admin_username):
                         values=(uname, reason, revoked_at[:19], revoked_by))
 
     refresh_crl()
+
+    return refresh_users
 
 
 # ── RF03: Baja de identidad ──────────────────────────────────
@@ -418,3 +425,5 @@ def _build_baja(parent, admin_username):
 
     _btn(body, "Dar de Baja", do_deactivate,
          bg=DANGER, full=True, pady=10)
+
+    return refresh_users

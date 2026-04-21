@@ -27,24 +27,25 @@ def verify_password(password, salt, stored_hash):
     return new_hash == stored_hash
 
 
-def register_user(username, password, role="user"):
+def register_user(username, password, role="user", pending=False):
     con = get_connection()
     cur = con.cursor()
 
     salt, hashed = hash_password(password)
+    status = "pending" if pending else "active"
 
     try:
         cur.execute(
-            "INSERT INTO users (username, password_hash, salt, role) VALUES (?, ?, ?, ?)",
-            (username, hashed, salt, role)
+            "INSERT INTO users (username, password_hash, salt, role, status) VALUES (?, ?, ?, ?, ?)",
+            (username, hashed, salt, role, status)
         )
         con.commit()
 
-        # 🔐 Generar claves y certificado
-        generate_keys(username)
-        create_certificate(username)
+        if not pending:
+            generate_keys(username)
+            create_certificate(username)
 
-        log_action(username, "REGISTER")
+        log_action(username, "REGISTER" if not pending else "REGISTER_PENDING")
 
         return True
 
@@ -72,6 +73,10 @@ def login_user(username, password):
     if result:
 
         stored_hash, salt, role, status = result
+
+        if status == "pending":
+            log_action(username, "LOGIN BLOCKED (cuenta pendiente de aprobacion)")
+            return False, "pending"
 
         if status != "active":
             log_action(username, "LOGIN BLOCKED (cuenta inactiva o revocada)")

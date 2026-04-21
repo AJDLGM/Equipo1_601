@@ -1,13 +1,13 @@
 import os
 import json
 import tkinter as tk
-from tkinter import messagebox, simpledialog, filedialog
+from tkinter import ttk, messagebox, simpledialog, filedialog
 
 from auth.auth import login_user, register_user
 from auth.mfa import generate_otp
 from auth.permissions import has_permission
 from crypto.signature import sign_message, verify_signature, sign_file, verify_file
-from db.admin_queries import get_logs
+from db.admin_queries import get_logs, get_pending_users, approve_user
 from ui.admin_panel import open_admin_panel
 
 # ── Paleta de colores ────────────────────────────────────────
@@ -120,17 +120,13 @@ def start_app():
             return
         success, role = login_user(user, password)
         if success:
-            otp = generate_otp()
-            messagebox.showinfo("Código OTP",
-                                f"Tu código de verificación es:\n\n{otp}",
-                                parent=root)
-            user_otp = simpledialog.askstring(
-                "Verificación", "Ingresa el código OTP:", parent=root)
-            if user_otp == otp:
-                open_dashboard(user, role)
-            else:
-                messagebox.showerror("OTP incorrecto",
-                                     "El código ingresado no es válido.", parent=root)
+            # OTP desactivado temporalmente para pruebas
+            open_dashboard(user, role)
+        elif role == "pending":
+            messagebox.showwarning(
+                "Cuenta pendiente",
+                "Tu cuenta está pendiente de aprobación\n"
+                "por el administrador.", parent=root)
         else:
             messagebox.showerror(
                 "Acceso denegado",
@@ -144,9 +140,12 @@ def start_app():
             messagebox.showwarning("Campos vacíos",
                                    "Ingresa usuario y contraseña.", parent=root)
             return
-        if register_user(user, password):
-            messagebox.showinfo("Registro exitoso",
-                                f"Usuario '{user}' creado correctamente.", parent=root)
+        if register_user(user, password, pending=True):
+            messagebox.showinfo(
+                "Solicitud enviada",
+                f"Tu cuenta '{user}' fue creada.\n\n"
+                "Está pendiente de aprobación por el administrador.\n"
+                "Podrás iniciar sesión una vez que sea activada.", parent=root)
         else:
             messagebox.showerror("Error",
                                  "El nombre de usuario ya existe.", parent=root)
@@ -238,6 +237,65 @@ def start_app():
                  lambda: show_certificate(username),
                  bg=PRIMARY, full=True)
 
+            def download_credentials():
+                import pyzipper
+                from config.paths import get_user_dir
+                from auth.auth import verify_password
+                from db.database import get_connection
+
+                # Pedir contraseña para verificar y cifrar el ZIP
+                pwd = simpledialog.askstring(
+                    "Confirmar identidad",
+                    "Ingresa tu contraseña para descargar las credenciales:",
+                    show="*", parent=dash)
+                if not pwd:
+                    return
+
+                con = get_connection()
+                cur = con.cursor()
+                cur.execute("SELECT password_hash, salt FROM users WHERE username=?", (username,))
+                row = cur.fetchone()
+                con.close()
+
+                if not row or not verify_password(pwd, row[1], row[0]):
+                    messagebox.showerror("Contraseña incorrecta",
+                                         "La contraseña ingresada no es válida.", parent=dash)
+                    return
+
+                dest = filedialog.askdirectory(
+                    title="Selecciona carpeta de destino", parent=dash)
+                if not dest:
+                    return
+
+                dirs = get_user_dir(username)
+                archivos = [
+                    (os.path.join(dirs["keys"],  f"{username}_private.pem"), f"{username}_private.pem"),
+                    (os.path.join(dirs["keys"],  f"{username}_public.pem"),  f"{username}_public.pem"),
+                    (os.path.join(dirs["certs"], f"{username}_cert.json"),   f"{username}_cert.json"),
+                ]
+                faltantes = [n for p, n in archivos if not os.path.exists(p)]
+                if faltantes:
+                    messagebox.showerror(
+                        "Archivos no encontrados",
+                        "No se encontraron:\n" + "\n".join(faltantes), parent=dash)
+                    return
+
+                zip_path = os.path.join(dest, f"{username}_credenciales.zip")
+                with pyzipper.AESZipFile(zip_path, "w",
+                                         compression=pyzipper.ZIP_DEFLATED,
+                                         encryption=pyzipper.WZ_AES) as zf:
+                    zf.setpassword(pwd.encode())
+                    for src, name in archivos:
+                        zf.write(src, name)
+
+                messagebox.showinfo(
+                    "Descarga completa",
+                    f"ZIP cifrado guardado en:\n{zip_path}\n\n"
+                    "Usa tu contraseña de cuenta para abrirlo.", parent=dash)
+
+            _btn(sec, "Descargar Certificado y Claves",
+                 download_credentials, bg=NEUTRAL, full=True)
+
         # EDITAR
         if has_permission(role, "edit"):
             sec = _card(content, "Firma Digital")
@@ -319,6 +377,91 @@ def start_app():
 
             _btn(row2, "Verificar texto",   verify,          bg=SUCCESS).pack(side="left", padx=(0, 6), pady=2)
             _btn(row2, "Verificar archivo", verify_file_ui,  bg=SUCCESS).pack(side="left", pady=2)
+
+        # ADMIN — Solicitudes pendientes
+        if role == "admin":
+            sec_pending = _card(content, "Solicitudes de Activacion Pendientes")
+
+            pending_frame = tk.Frame(sec_pending, bg=CARD,
+                                     highlightbackground=BORDER, highlightthickness=1)
+            pending_frame.pack(fill="x", pady=(2, 10))
+            sb_p = tk.Scrollbar(pending_frame, orient="vertical")
+            pending_lb = tk.Listbox(
+                pending_frame, height=4,
+                yscrollcommand=sb_p.set,
+                exportselection=False,
+                relief="flat", bd=0,
+                font=(FONT, 10),
+                bg=CARD, fg=TEXT,
+                selectbackground=PRIMARY,
+                selectforeground="white",
+                activestyle="none",
+            )
+            sb_p.config(command=pending_lb.yview)
+            sb_p.pack(side="right", fill="y")
+            pending_lb.pack(side="left", fill="x", expand=True, padx=4, pady=4)
+
+            no_pending_lbl = tk.Label(
+                sec_pending, text="No hay solicitudes pendientes.",
+                font=(FONT, 9, "italic"), bg=CARD, fg=SUBTEXT)
+
+            def refresh_pending():
+                pending_lb.delete(0, tk.END)
+                pending = get_pending_users()
+                if pending:
+                    no_pending_lbl.pack_forget()
+                    pending_frame.pack(fill="x", pady=(2, 10))
+                    for uname, urole in pending:
+                        pending_lb.insert(tk.END, f"  {uname:<22} [{urole}]")
+                else:
+                    pending_frame.pack_forget()
+                    no_pending_lbl.pack(anchor="w", pady=(0, 8))
+
+            def do_approve():
+                sel = pending_lb.curselection()
+                if not sel:
+                    messagebox.showwarning("Sin seleccion",
+                                           "Selecciona una cuenta para aprobar.", parent=dash)
+                    return
+                uname = pending_lb.get(sel[0]).strip().split()[0]
+
+                # Diálogo de selección de rol
+                role_dialog = tk.Toplevel(dash)
+                role_dialog.title("Asignar Rol")
+                role_dialog.configure(bg=CARD)
+                role_dialog.resizable(False, False)
+                sw, sh = dash.winfo_screenwidth(), dash.winfo_screenheight()
+                role_dialog.geometry(f"300x160+{(sw-300)//2}+{(sh-160)//2}")
+                role_dialog.grab_set()
+
+                tk.Label(role_dialog,
+                         text=f"Selecciona el rol para '{uname}':",
+                         font=(FONT, 10), bg=CARD, fg=TEXT
+                         ).pack(pady=(20, 8), padx=20, anchor="w")
+
+                role_var = tk.StringVar(value="externo")
+                cb = ttk.Combobox(role_dialog, textvariable=role_var,
+                                  values=["externo", "operativo", "coordinador", "admin"],
+                                  state="readonly", font=(FONT, 10))
+                cb.pack(fill="x", padx=20, pady=(0, 16))
+
+                def confirm_approve():
+                    selected_role = role_var.get()
+                    role_dialog.destroy()
+                    approve_user(uname, username, selected_role)
+                    messagebox.showinfo(
+                        "Cuenta activada",
+                        f"La cuenta '{uname}' fue activada con rol '{selected_role}'.", parent=dash)
+                    refresh_pending()
+
+                _btn(role_dialog, "Aprobar", confirm_approve,
+                     bg=SUCCESS, pady=8).pack(fill="x", padx=20)
+
+                role_dialog.wait_window()
+
+            refresh_pending()
+            _btn(sec_pending, "Aprobar cuenta seleccionada", do_approve,
+                 bg=SUCCESS, full=True, pady=9)
 
         # ADMIN
         if role == "admin":
