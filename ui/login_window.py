@@ -546,7 +546,7 @@ def start_app():
              ).pack(anchor="w", pady=(0, 16))
 
     entry_user = _field(inner, "Usuario")
-    entry_pass = _field(inner, "Contrasena", show="*")
+    entry_pass = _field(inner, "Contraseña", show="*")
 
     tk.Frame(inner, bg=BG, height=4).pack()
 

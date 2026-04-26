@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tabla de Pruebas – Sistema de Gestión de Identidades Digitales</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 12px;
+      background: #f0f2f5;
+      color: #1a1a2e;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+      color: white;
+      padding: 32px 40px 24px;
+    }
+
+    header h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    header p  { font-size: 13px; opacity: .8; }
+
+    .meta {
+      display: flex;
+      gap: 40px;
+      margin-top: 16px;
+      font-size: 12px;
+      opacity: .9;
+    }
+    .meta span strong { margin-right: 4px; }
+
+    .container { padding: 32px 40px; }
+
+    /* ── legend ── */
+    .legend {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-pass   { background:#d1fae5; color:#065f46; }
+    .badge-fail   { background:#fee2e2; color:#991b1b; }
+    .badge-pend   { background:#fef3c7; color:#92400e; }
+
+    /* ── table ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08);
+    }
+
+    thead tr {
+      background: #1a1a2e;
+      color: #fff;
+    }
+    thead th {
+      padding: 12px 10px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      white-space: nowrap;
+    }
+
+    tbody tr { border-bottom: 1px solid #e5e7eb; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #f8fafc; }
+
+    td {
+      padding: 10px 10px;
+      vertical-align: top;
+      line-height: 1.5;
+    }
+
+    /* category row */
+    .cat-row td {
+      background: #e8ecf8;
+      font-weight: 700;
+      font-size: 12px;
+      color: #1a1a2e;
+      padding: 7px 10px;
+      letter-spacing: .04em;
+    }
+
+    .num  { text-align: center; font-weight: 700; color: #0f3460; width: 36px; }
+    .id   { font-weight: 600; color: #0f3460; white-space: nowrap; width: 80px; }
+    .col-name { min-width: 150px; font-weight: 600; }
+    .col-pre  { min-width: 140px; }
+    .col-step { min-width: 200px; }
+    .col-exp  { min-width: 170px; }
+    .col-res  { min-width: 60px; }
+    .col-img  { width: 130px; text-align: center; }
+
+    ol, ul { padding-left: 16px; }
+    li { margin-bottom: 2px; }
+
+    /* status badges */
+    .pass { display:inline-block; background:#d1fae5; color:#065f46;
+            padding:2px 10px; border-radius:20px; font-weight:700; font-size:11px; }
+    .fail { display:inline-block; background:#fee2e2; color:#991b1b;
+            padding:2px 10px; border-radius:20px; font-weight:700; font-size:11px; }
+    .pend { display:inline-block; background:#fef3c7; color:#92400e;
+            padding:2px 10px; border-radius:20px; font-weight:700; font-size:11px; }
+
+    /* image placeholder */
+    .img-box {
+      width: 110px;
+      height: 72px;
+      border: 2px dashed #cbd5e1;
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      margin: 0 auto;
+      color: #94a3b8;
+      font-size: 10px;
+      cursor: pointer;
+      background: #f8fafc;
+      position: relative;
+      overflow: hidden;
+    }
+    .img-box svg { opacity: .5; }
+    .img-box input[type=file] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .img-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 4px;
+      display: none;
+    }
+
+    /* result input */
+    .result-input {
+      width: 52px;
+      text-align: center;
+    }
+    select.status-sel {
+      border: 1px solid #d1d5db;
+      border-radius: 16px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #fff;
+      cursor: pointer;
+      color: #374151;
+    }
+
+    /* ── summary ── */
+    .summary {
+      display: flex;
+      gap: 16px;
+      margin-top: 24px;
+      flex-wrap: wrap;
+    }
+    .sum-card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 16px 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.07);
+      min-width: 120px;
+      text-align: center;
+    }
+    .sum-card .num-big { font-size: 28px; font-weight: 800; }
+    .sum-card p { font-size: 11px; color: #6b7280; margin-top: 4px; }
+    .green { color: #059669; }
+    .red   { color: #dc2626; }
+    .yellow{ color: #d97706; }
+    .blue  { color: #1d4ed8; }
+
+    @media print {
+      body { background: #fff; font-size: 10px; }
+      .container { padding: 10px; }
+      header { padding: 16px 20px; }
+      .img-box input[type=file] { display: none; }
+      .status-sel { border: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Tabla de Pruebas — Sistema de Gestión de Identidades Digitales</h1>
+  <p>Proyecto Equipo 1 | Materia: Seguridad Informática</p>
+  <div class="meta">
+    <span><strong>Fecha:</strong> 24 de abril de 2026</span>
+    <span><strong>Versión:</strong> 1.0</span>
+    <span><strong>Responsable:</strong> Equipo 1 – Grupo 601</span>
+    <span><strong>Tecnología:</strong> Python 3 · Tkinter · SQLite · RSA-2048</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Legend -->
+  <div class="legend">
+    <span class="badge badge-pass">&#10003; Aprobado</span>
+    <span class="badge badge-fail">&#10007; Fallido</span>
+    <span class="badge badge-pend">&#9711; Pendiente</span>
+  </div>
+
+  <table id="tbl">
+    <thead>
+      <tr>
+        <th class="num">#</th>
+        <th class="id">ID</th>
+        <th class="col-name">Nombre del caso</th>
+        <th class="col-pre">Precondiciones</th>
+        <th class="col-step">Pasos</th>
+        <th class="col-exp">Resultado esperado</th>
+        <th class="col-res">Estado</th>
+        <th class="col-img">Evidencia (captura)</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <!-- ═══════════════════════════════════ MÓDULO 1 ═══ -->
+      <tr class="cat-row"><td colspan="8">&#128100; MÓDULO 1 — Registro de Usuarios</td></tr>
+
+      <tr>
+        <td class="num">1</td>
+        <td class="id">CP-01</td>
+        <td class="col-name">Registro exitoso de nuevo usuario</td>
+        <td class="col-pre">Sistema iniciado. No existe usuario "testuser1" en la BD.</td>
+        <td class="col-step"><ol>
+          <li>Abrir la aplicación.</li>
+          <li>Clic en "Crear cuenta".</li>
+          <li>Ingresar usuario: <code>testuser1</code> y contraseña válida.</li>
+          <li>Confirmar registro.</li>
+        </ol></td>
+        <td class="col-exp">Mensaje "Cuenta creada, esperando aprobación". Usuario aparece en BD con <code>status='pending'</code>. Log <code>REGISTER_PENDING</code> generado.</td>
+        <td class="col-res"><select class="status-sel"><option value="">–</option><option>Aprobado</option><option>Fallido</option><option>Pendiente</option></select></td>
+        <td class="col-img"><div class="img-box" onclick="this.querySelector('input').click()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>Agregar imagen</span>
+          <input type="file" accept="image/*" onchange="previewImg(this)">
+          <img alt="captura">
+        </div></td>
+      </tr>
+
+      <tr>
+        <td class="num">2</td>
+        <td class="id">CP-02</td>
+        <td class="col-name">Registro con usuario ya existente</td>
+        <td class="col-pre">Usuario "admin" ya existe en la BD.</td>
+        <td class="col-step"><ol>
+          <li>Clic en "Crear cuenta".</li>
+          <li>Ingresar usuario: <code>admin</code>.</li>
+          <li>Ingresar contraseña y confirmar.</li>
+        </ol></td>
+        <td class="col-exp">Mensaje de error "El usuario ya existe". No se crea registro duplicado en BD.</td>
+        <td class="col-res"><select class="status-sel"><option value="">–</option><option>Aprobado</option><option>Fallido</option><option>Pendiente</option></select></td>
+        <td class="col-img"><div class="img-box" onclick="this.querySelector('input').click()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>Agregar imagen</span>
+          <input type="file" accept="image/*" onchange="previewImg(this)">
+          <img alt="captura">
+        </div></td>
+      </tr>
+
+      <tr>
+        <td class="num">3</td>
+        <td class="id">CP-03</td>
+        <td class="col-name">Registro con campos vacíos</td>
+        <td class="col-pre">Sistema iniciado.</td>
+        <td class="col-step"><ol>
+          <li>Clic en "Crear cuenta".</li>
+          <li>Dejar usuario y/o contraseña vacíos.</li>
+          <li>Intentar confirmar registro.</li>
+        </ol></td>
+        <td class="col-exp">Mensaje de validación indicando campos obligatorios. No se crea ningún registro.</td>
+        <td class="col-res"><select class="status-sel"><option value="">–</option><option>Aprobado</option><option>Fallido</option><option>Pendiente</option></select></td>
+        <td class="col-img"><div class="img-box" onclick="this.querySelector('input').click()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>Agregar imagen</span>
+          <input type="file" accept="image/*" onchange="previewImg(this)">
+          <img alt="captura">
+        </div></td>
+      </tr>
+
+      <!-- ═══════════════════════════════════ MÓDULO 2 ═══ -->
+      <tr class="cat-row"><td colspan="8">&#128274; MÓDULO 2 — Autenticación (Login)</td></tr>
+
+      <tr>
+        <td class="num">4</td>
+        <td class="id">CP-04</td>
+        <td class="col-name">Login exitoso con usuario activo</td>
+        <td class="col-pre">Usuario "admin" existe con <code>status='active'</code> y contraseña conocida.</td>
+        <td class="col-step"><ol>
+          <li>Ingresar usuario: <code>admin</code>.</li>
+          <li>Ingresar contraseña correcta.</li>
+          <li>Clic en "Iniciar sesión".</li>
+        </ol></td>
+        <td class="col-exp">Se abre el dashboard del sistema. Log <code>LOGIN SUCCESS</code> registrado con timestamp.</td>
+        <td class="col-res"><select class="status-sel"><option value="">–</option><option>Aprobado</option><option>Fallido</option><option>Pendiente</option></select></td>
+        <td class="col-img"><div class="img-box" onclick="this.querySelector('input').click()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>Agregar imagen</span>
+          <input type="file" accept="image/*" onchange="previewImg(this)">
+          <img alt="captura">
+        </div></td>
+      </tr>
+
+      <tr>
+        <td class="num">5</td>
+        <td class="id">CP-05</td>
+        <td class="col-name">Login con contraseña incorrecta</td>
+        <td class="col-pre">Usuario "admin" existe con <code>status='active'</code>.</td>
+        <td class="col-step"><ol>
+          <li>Ingresar usuario: <code>admin</code>.</li>
+          <li>Ingresar contraseña incorrecta.</li>
+          <li>Clic en "Iniciar sesión".</li>
+        </ol></td>
+        <td class="col-exp">Mensaje "Usuario o contraseña incorrectos". Log <code>LOGIN FAILED</code> registrado. No abre dashboard.</td>
+        <td class="col-res"><select class="status-sel"><option value="">–</option><option>Aprobado</option><option>Fallido</option><option>Pendiente</option></select></td>
+        <td class="col-img"><div class="img-box" onclick="this.querySelector('input').click()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>Agregar imagen</span>
+          <input type="file" accept="image/*" onchange="previewImg(this)">
+          <img alt="captura">
+        </div></td>
+      </tr>
+
+      <tr>
+        <td class="num">6</td>
+        <td class="id">CP-06</td>
+        <td class="col-name">Login con cuenta pendiente</td>
+        <td class="col-pre">Usuario registrado con <code>status='pending'</code> (sin aprobar).</td>
+        <td class="col-step"><ol>
+          <li>Ingresar usuario y contraseña del usuario pendiente.</li>
+          <li>Clic en "Iniciar sesión".</li>
+        </ol></td>
+        <td class="col-exp">Mensaje "Cuenta pendiente de aprobación". Log <code>LOGIN BLOCKED (cuenta pendiente)</code> registrado.</td>
+        <td class="col-res"><select class="status-sel"><option value="">–</option><option>Aprobado</option><option>Fallido</option><option>Pendiente</option></select></td>
+        <td class="col-img"><div class="img-box" onclick="this.querySelector('input').click()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>Agregar imagen</span>
+          <input type="file" accept="image/*" onchange="previewImg(this)">
+          <img alt="captura">
+        </div></td>
+      </tr>
+
+      <tr>
+        <td class="num">7</td>
+        <td class="id">CP-07</td>
+        <td class="col-name">Login con cuenta inactiva o revocada</td>
+        <td class="col-pre">Usuario con <code>status='inactive'</code> o <code>status='revoked'</code>.</td>
+        <td class="col-step"><ol>
+          <li>Ingresar usuario y contraseña del usuario inactivo/revocado.</li>
+          <li>Clic en "Iniciar sesión".</li>
+        </ol></td>
+        <td class="col-exp">Mensaje "Cuenta inactiva o revocada". Log <code>LOGIN BLOCKED</code> registrado. No abre dashboard.</td>
+        <td class="col-res"><select class="status-sel"><option value="">–</option><option>Aprobado</option><option>Fallido</option><option>Pendiente</option></select></td>
+        <td class="col-img"><div class="img-box" onclick="this.querySelector('input').click()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>Agregar imagen</span>
+          <input type="file" accept="image/*" onchange="previewImg(this)">
+          <img alt="captura">
+        </div></td>
+      </tr>
+
+      <!-- ═══════════════════════════════════ MÓDULO 3 ═══ -->
+      <tr class="cat-row"><td colspan="8">&#128737; MÓDULO 3 — Aprobación de Cuentas (Admin)</td></tr>
+
+      <tr>
+        <td class="num">8</td>
+        <td class="id">CP-08</td>
+        <td class="col-name">Admin aprueba cuenta pendiente con rol</td>
+        <td class="col-pre">Existe usuario con <code>status='pending'</code>. Sesión iniciada como admin.</td>
+        <td class="col-step"><ol>
+          <li>En el dashboard admin, ir a "Aprobar cuentas".</li>
+          <li>Seleccionar el usuario pendiente.</li>
+          <li>Asignar rol (ej. "operativo").</li>
+          <li>Confirmar aprobación.</li>
+        </ol></td>
+        <td class="col-exp"><code>status='active'</code>, rol asignado. Claves RSA-2048 generadas. Certificado JSON creado. Log <code>APPROVE_USER:{username}</code> registrado.</td>
+        <td class="col-res"><select class="status-sel"><option value="">–</option><option>Aprobado</option><option>Fallido</option><option>Pendiente</option></select></td>
+        <td class="col-img"><div class="img-box" onclick="this.querySelector('input').click()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>Agregar imagen</span>
+          <input type="file" accept="image/*" onchange="previewImg(this)">
+          <img alt="captura">
+        </div></td>
+      </tr>
+
+      <tr>
+        <td class="num">9</td>
+        <td class="id">CP-09</td>
+        <td class="col-name">Admin revoca certificado de un usuario</td>
+        <td class="col-pre">Usuario activo con certificado vigente. Sesión iniciada como admin.</td>
+        <td class="col-step"><ol>
+          <li>Ir a "Gestión de identidades" en el panel admin.</li>
+          <li>Seleccionar el usuario a revocar.</li>
+          <li>Ingresar motivo de revocación.</li>
+          <li>Confirmar.</li>
+        </ol></td>
+        <td class="col-exp">Certificado marcado como revocado. Registro en tabla <code>revoked_certs</code>. Log <code>REVOKE_CERT:{username}</code> con motivo generado.</td>
+        <td class="col-res"><select class="status-sel"><option value="">–</option><option>Aprobado</option><option>Fallido</option><option>Pendiente</option></select></td>
+        <td class="col-img"><div class="img-box" onclick="this.querySelector('input').click()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>Agregar imagen</span>
+          <input type="file" accept="image/*" onchange="previewImg(this)">
+          <img alt="captura">
+        </div></td>
+      </tr>
+
+      <tr>
+        <td class="num">10</td>
+        <td class="id">CP-10</td>
+        <td class="col-name">Admin desactiva un usuario</td>
+        <td class="col-pre">Usuario activo en el sistema. Sesión iniciada como admin.</td>
+        <td class="col-step"><ol>
+          <li>Ir a "Gestión de identidades".</li>
+          <li>Seleccionar usuario activo.</li>
+          <li>Clic en "Desactivar usuario".</li>
+        </ol></td>
+        <td class="col-exp">Usuario pasa a <code>status='inactive'</code>. Log <code>DEACTIVATE_USER:{username}</code> registrado. Usuario ya no puede iniciar sesión.</td>
+        <td class="col-res"><select class="status-sel"><option value="">–</option><option>Aprobado</option><option>Fallido</option><option>Pendiente</option></select></td>
+        <td class="col-img"><div class="img-box" onclick="this.querySelector('input').click()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>Agregar imagen</span>
+          <input type="file" accept="image/*" onchange="previewImg(this)">
+          <img alt="captura">
+        </div></td>
+      </tr>
+
+      <!-- ═══════════════════════════════════ MÓDULO 4 ═══ -->
+      <tr class="cat-row"><td colspan="8">&#128190; MÓDULO 4 — Certificados y Descarga de Credenciales</td></tr>
+
+      <tr>
+        <td class="num">11</td>
+        <td class="id">CP-11</td>
+        <td class="col-name">Visualizar certificado digital</td>
+        <td class="col-pre">Usuario activo con certificado generado. Sesión activa.</td>
+        <td class="col-step"><ol>
+          <li>En el dashboard, clic en "Ver certificado".</li>
+        </ol></td>
+        <td class="col-exp">Se muestra el certificado JSON con: nombre, fecha de emisión, fecha de expiración (365 días), hash SHA-256 y estado "active".</td>
+        <td class="col-res"><select class="status-sel"><option value="">–</option><option>Aprobado</option><option>Fallido</option><option>Pendiente</option></select></td>
+        <td class="col-img"><div class="img-box" onclick="this.querySelector('input').click()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>Agregar imagen</span>
+          <input type="file" accept="image/*" onchange="previewImg(this)">
+          <img alt="captura">
+        </div></td>
+      </tr>
+
+      <tr>
+        <td class="num">12</td>
+        <td class="id">CP-12</td>
+        <td class="col-name">Descarga de credenciales en ZIP cifrado</td>
+        <td class="col-pre">Usuario activo con claves RSA y certificado generados. Sesión activa.</td>
+        <td class="col-step"><ol>
+          <li>En el dashboard, clic en "Descargar credenciales".</li>
+          <li>Ingresar contraseña del usuario para proteger el ZIP.</li>
+          <li>Seleccionar ruta de descarga.</li>
+        </ol></td>
+        <td class="col-exp">Se descarga un archivo ZIP cifrado con AES. El ZIP contiene clave privada, clave pública y certificado. Solo abre con la contraseña correcta.</td>
+        <td class="col-res"><select class="status-sel"><option value="">–</option><option>Aprobado</option><option>Fallido</option><option>Pendiente</option></select></td>
+        <td class="col-img"><div class="img-box" onclick="this.querySelector('input').click()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>Agregar imagen</span>
+          <input type="file" accept="image/*" onchange="previewImg(this)">
+          <img alt="captura">
+        </div></td>
+      </tr>
+
+      <!-- ═══════════════════════════════════ MÓDULO 5 ═══ -->
+      <tr class="cat-row"><td colspan="8">&#128203; MÓDULO 5 — Auditoría y Logs</td></tr>
+
+      <tr>
+        <td class="num">13</td>
+        <td class="id">CP-13</td>
+        <td class="col-name">Visualización de logs del sistema</td>
+        <td class="col-pre">Se han realizado acciones previas en el sistema. Sesión de admin activa.</td>
+        <td class="col-step"><ol>
+          <li>En el panel admin, clic en "Ver logs".</li>
+        </ol></td>
+        <td class="col-exp">Se muestra tabla con registros de: usuario, acción y timestamp. Incluye todos los eventos previos (login, registro, aprobaciones, revocaciones).</td>
+        <td class="col-res"><select class="status-sel"><option value="">–</option><option>Aprobado</option><option>Fallido</option><option>Pendiente</option></select></td>
+        <td class="col-img"><div class="img-box" onclick="this.querySelector('input').click()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>Agregar imagen</span>
+          <input type="file" accept="image/*" onchange="previewImg(this)">
+          <img alt="captura">
+        </div></td>
+      </tr>
+
+      <tr>
+        <td class="num">14</td>
+        <td class="id">CP-14</td>
+        <td class="col-name">Registro de log en intento de login fallido</td>
+        <td class="col-pre">Sistema iniciado con BD vacía de logs.</td>
+        <td class="col-step"><ol>
+          <li>Intentar iniciar sesión con credenciales incorrectas.</li>
+          <li>Iniciar sesión como admin y revisar los logs.</li>
+        </ol></td>
+        <td class="col-exp">Log <code>LOGIN FAILED</code> visible en la tabla de logs con timestamp correcto del intento fallido.</td>
+        <td class="col-res"><select class="status-sel"><option value="">–</option><option>Aprobado</option><option>Fallido</option><option>Pendiente</option></select></td>
+        <td class="col-img"><div class="img-box" onclick="this.querySelector('input').click()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>Agregar imagen</span>
+          <input type="file" accept="image/*" onchange="previewImg(this)">
+          <img alt="captura">
+        </div></td>
+      </tr>
+
+    </tbody>
+  </table>
+
+  <!-- Summary -->
+  <div class="summary">
+    <div class="sum-card">
+      <div class="num-big blue" id="total">14</div>
+      <p>Total de casos</p>
+    </div>
+    <div class="sum-card">
+      <div class="num-big green" id="cnt-pass">0</div>
+      <p>Aprobados</p>
+    </div>
+    <div class="sum-card">
+      <div class="num-big red" id="cnt-fail">0</div>
+      <p>Fallidos</p>
+    </div>
+    <div class="sum-card">
+      <div class="num-big yellow" id="cnt-pend">14</div>
+      <p>Pendientes</p>
+    </div>
+    <div class="sum-card">
+      <div class="num-big blue" id="pct">0%</div>
+      <p>Cobertura aprobados</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  /* ── image preview ── */
+  function previewImg(input) {
+    if (!input.files || !input.files[0]) return;
+    const box = input.closest('.img-box');
+    const img = box.querySelector('img');
+    const reader = new FileReader();
+    reader.onload = e => {
+      img.src = e.target.result;
+      img.style.display = 'block';
+      box.querySelector('svg').style.display = 'none';
+      box.querySelector('span').style.display = 'none';
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+
+  /* ── status counter ── */
+  function updateCounts() {
+    const sels = document.querySelectorAll('select.status-sel');
+    let pass = 0, fail = 0, pend = 0;
+    sels.forEach(s => {
+      if (s.value === 'Aprobado') pass++;
+      else if (s.value === 'Fallido') fail++;
+      else pend++;
+    });
+    const total = sels.length;
+    document.getElementById('cnt-pass').textContent = pass;
+    document.getElementById('cnt-fail').textContent = fail;
+    document.getElementById('cnt-pend').textContent = pend;
+    document.getElementById('pct').textContent = total ? Math.round(pass/total*100)+'%' : '0%';
+  }
+
+  document.querySelectorAll('select.status-sel').forEach(s => s.addEventListener('change', updateCounts));
+  updateCounts();
+</script>
+</body>
+</html>

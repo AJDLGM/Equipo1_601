@@ -2,5 +2,7 @@
     "user": "jorge",
     "issued_at": "2026-04-20 22:37:01.497781",
     "expires_at": "2027-04-20 22:37:01.498782",
-    "signature": "9938184d4f435548f038a117177bacf045fdb62cbe4ef260cd7816d387258829"
+    "signature": "9938184d4f435548f038a117177bacf045fdb62cbe4ef260cd7816d387258829",
+    "status": "revoked",
+    "revocation_reason": "Prueba"
 }

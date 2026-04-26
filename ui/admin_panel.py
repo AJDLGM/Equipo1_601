@@ -150,8 +150,13 @@ def open_admin_panel(admin_username):
     nb.add(tab_rev,  text="  Revocacion  ")
     nb.add(tab_baja, text="  Baja  ")
 
-    refresh_baja = _build_baja(tab_baja, admin_username)
+    rev_refresher = [None]  # contenedor mutable para evitar referencia circular
+
+    refresh_baja = _build_baja(tab_baja, admin_username,
+                               on_deactivate=lambda: rev_refresher[0] and rev_refresher[0]())
     refresh_rev  = _build_revocacion(tab_rev, admin_username, on_revoke=refresh_baja)
+    rev_refresher[0] = refresh_rev
+
     _build_alta(tab_alta, admin_username,
                 on_register=lambda: (refresh_rev(), refresh_baja()))
 
@@ -205,8 +210,8 @@ def _build_alta(parent, admin_username, on_register=None):
     )
     role_cb.pack(fill="x", padx=6, pady=6)
 
-    lbl("Contrasena",          2, 0)
-    lbl("Confirmar contrasena", 2, 1)
+    lbl("Contraseña",          2, 0)
+    lbl("Confirmar contraseña", 2, 1)
     e_pass  = entry_grid(2, 0, show="*")
     e_pass2 = entry_grid(2, 1, show="*")
 
@@ -224,13 +229,13 @@ def _build_alta(parent, admin_username, on_register=None):
 
         msg_lbl.config(fg=DANGER)
         if not username or not password:
-            msg_var.set("Usuario y contrasena son obligatorios.")
+            msg_var.set("Usuario y contraseña son obligatorios.")
             return
         if len(password) < 6:
-            msg_var.set("La contrasena debe tener al menos 6 caracteres.")
+            msg_var.set("La contraseña debe tener al menos 6 caracteres.")
             return
         if password != password2:
-            msg_var.set("Las contrasenias no coinciden.")
+            msg_var.set("Las contraseñas no coinciden.")
             return
 
         if register_user(username, password, role):
@@ -358,7 +363,7 @@ def _build_revocacion(parent, admin_username, on_revoke=None):
 
 # ── RF03: Baja de identidad ──────────────────────────────────
 
-def _build_baja(parent, admin_username):
+def _build_baja(parent, admin_username, on_deactivate=None):
 
     outer = tk.Frame(parent, bg=BG)
     outer.pack(fill="both", expand=True, padx=24, pady=20)
@@ -422,6 +427,8 @@ def _build_baja(parent, admin_username):
                 parent=card.winfo_toplevel(),
             )
             refresh_users()
+            if on_deactivate:
+                on_deactivate()
 
     _btn(body, "Dar de Baja", do_deactivate,
          bg=DANGER, full=True, pady=10)
