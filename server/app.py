@@ -199,6 +199,28 @@ def logs():
     return jsonify([{"user": u, "action": a, "timestamp": t} for u, a, t in get_logs()])
 
 
+# ── Setup inicial (solo funciona si no hay usuarios) ──────────
+
+@app.route("/setup", methods=["POST"])
+def setup():
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute("SELECT COUNT(*) FROM users")
+    count = cur.fetchone()[0]
+    con.close()
+    if count > 0:
+        return jsonify({"error": "El sistema ya tiene usuarios registrados"}), 400
+    data = request.json or {}
+    username = data.get("username", "admin")
+    password = data.get("password", "")
+    if not password:
+        return jsonify({"error": "Se requiere contrasena"}), 400
+    ok = register_user(username, password, role="admin")
+    if ok:
+        return jsonify({"ok": True, "mensaje": f"Admin '{username}' creado correctamente"})
+    return jsonify({"error": "Error al crear el admin"}), 500
+
+
 # ── Health ────────────────────────────────────────────────────
 
 @app.route("/ping", methods=["GET"])
