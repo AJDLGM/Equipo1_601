@@ -1,0 +1,5 @@
+cryptography
+pyzipper
+flask
+gunicorn
+pyinstaller

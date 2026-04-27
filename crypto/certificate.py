@@ -1,32 +1,25 @@
 import json
 import hashlib
-import os
 from datetime import datetime, timedelta
-from config.paths import get_user_dir
 
 
 def create_certificate(username):
-
-    dirs = get_user_dir(username)
-
     cert = {
-        "user": username,
-        "issued_at": str(datetime.now()),
-        "expires_at": str(datetime.now() + timedelta(days=365))
+        "user":       username,
+        "issued_at":  str(datetime.now()),
+        "expires_at": str(datetime.now() + timedelta(days=365)),
+        "status":     "active",
     }
+    cert["signature"] = hashlib.sha256(json.dumps(cert).encode()).hexdigest()
 
-    cert_str = json.dumps(cert)
-
-    cert_hash = hashlib.sha256(cert_str.encode()).hexdigest()
-
-    cert["signature"] = cert_hash
-
-    cert_path = os.path.join(
-        dirs["certs"],
-        f"{username}_cert.json"
+    from db.database import get_connection
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute("INSERT OR IGNORE INTO user_data (username) VALUES (?)", (username,))
+    cur.execute(
+        "UPDATE user_data SET cert_json=? WHERE username=?",
+        (json.dumps(cert, indent=4), username),
     )
-
-    with open(cert_path, "w") as f:
-        json.dump(cert, f, indent=4)
-
+    con.commit()
+    con.close()
     return True

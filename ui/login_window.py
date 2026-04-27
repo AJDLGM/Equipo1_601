@@ -3,11 +3,9 @@ import json
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog, filedialog
 
-from auth.auth import login_user, register_user
-from auth.mfa import generate_otp
 from auth.permissions import has_permission
 from crypto.signature import sign_message, verify_signature, sign_file, verify_file
-from db.admin_queries import get_logs, get_pending_users, approve_user
+from client.api_client import get_client
 from ui.admin_panel import open_admin_panel
 
 # ── Paleta de colores ────────────────────────────────────────
@@ -50,8 +48,7 @@ def _darken(hex_color):
     h = hex_color.lstrip("#")
     r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
     return "#{:02x}{:02x}{:02x}".format(
-        int(r * 0.85), int(g * 0.85), int(b * 0.85)
-    )
+        int(r * 0.85), int(g * 0.85), int(b * 0.85))
 
 
 def _btn(parent, text, cmd, bg=PRIMARY, fg="white", full=False, pady=9):
@@ -107,58 +104,87 @@ def _card(parent, title=None):
     return body
 
 
+# ── Sincronizacion de claves locales ─────────────────────────
+
+def _has_local_keys(username):
+    """Verifica si el usuario ya tiene sus claves descargadas localmente."""
+    from config.paths import USERS_DIR
+    priv = os.path.join(USERS_DIR, username, "keys", f"{username}_private.pem")
+    return os.path.exists(priv)
+
+
+def _sync_local_keys(username, dirs, api):
+    """Descarga claves y certificado del servidor al cache local."""
+    priv = os.path.join(dirs["keys"], f"{username}_private.pem")
+    pub  = os.path.join(dirs["keys"], f"{username}_public.pem")
+    cert = os.path.join(dirs["certs"], f"{username}_cert.json")
+
+    if not os.path.exists(priv):
+        data = api.get_private_key(username)
+        if data:
+            with open(priv, "wb") as f:
+                f.write(data)
+
+    if not os.path.exists(pub):
+        data = api.get_public_key(username)
+        if data:
+            with open(pub, "wb") as f:
+                f.write(data)
+
+    cert_data = api.get_cert(username)
+    if cert_data:
+        with open(cert, "w") as f:
+            json.dump(cert_data, f, indent=4)
+
+
 # ── App principal ────────────────────────────────────────────
 
 def start_app():
+    api = get_client()
 
     def login():
         user     = entry_user.get().strip()
         password = entry_pass.get()
         if not user or not password:
-            messagebox.showwarning("Campos vacíos",
-                                   "Ingresa usuario y contraseña.", parent=root)
+            messagebox.showwarning("Campos vacios",
+                                   "Ingresa usuario y contrasena.", parent=root)
             return
-        success, role = login_user(user, password)
+        success, role = api.login(user, password)
         if success:
-            # OTP desactivado temporalmente para pruebas
             open_dashboard(user, role)
         elif role == "pending":
             messagebox.showwarning(
                 "Cuenta pendiente",
-                "Tu cuenta está pendiente de aprobación\n"
+                "Tu cuenta esta pendiente de aprobacion\n"
                 "por el administrador.", parent=root)
         else:
             messagebox.showerror(
                 "Acceso denegado",
-                "Usuario o contraseña incorrectos,\n"
-                "o la cuenta está desactivada.", parent=root)
+                "Usuario o contrasena incorrectos,\n"
+                "o la cuenta esta desactivada.", parent=root)
 
     def register():
         user     = entry_user.get().strip()
         password = entry_pass.get()
         if not user or not password:
-            messagebox.showwarning("Campos vacíos",
-                                   "Ingresa usuario y contraseña.", parent=root)
+            messagebox.showwarning("Campos vacios",
+                                   "Ingresa usuario y contrasena.", parent=root)
             return
-        if register_user(user, password, pending=True):
+        if api.register(user, password):
             messagebox.showinfo(
                 "Solicitud enviada",
                 f"Tu cuenta '{user}' fue creada.\n\n"
-                "Está pendiente de aprobación por el administrador.\n"
-                "Podrás iniciar sesión una vez que sea activada.", parent=root)
+                "Esta pendiente de aprobacion por el administrador.\n"
+                "Podras iniciar sesion una vez que sea activada.", parent=root)
         else:
             messagebox.showerror("Error",
                                  "El nombre de usuario ya existe.", parent=root)
 
     def show_certificate(username):
-        from config.paths import get_user_dir
-        dirs     = get_user_dir(username)
-        cert_path = os.path.join(dirs["certs"], f"{username}_cert.json")
-        if not os.path.exists(cert_path):
-            messagebox.showerror("Error", "No se encontró el certificado.", parent=root)
+        cert = api.get_cert(username)
+        if not cert:
+            messagebox.showerror("Error", "No se encontro el certificado.", parent=root)
             return
-        with open(cert_path) as f:
-            cert = json.load(f)
         status = cert.get("status", "active").upper()
         reason = cert.get("revocation_reason", "—")
         messagebox.showinfo(
@@ -172,6 +198,7 @@ def start_app():
         )
 
     def open_dashboard(username, role):
+        _pending_job = [None]
 
         dash = tk.Toplevel()
         dash.title("Dashboard")
@@ -220,7 +247,6 @@ def start_app():
         canvas.bind_all("<MouseWheel>",
                         lambda e: canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
 
-        # padding interior del contenido
         pad = tk.Frame(content, bg=BG, height=16)
         pad.pack()
         inner = tk.Frame(content, bg=BG)
@@ -228,7 +254,7 @@ def start_app():
         pad2 = tk.Frame(content, bg=BG, height=16)
         pad2.pack()
 
-        content = inner  # apuntar al frame con padding
+        content = inner
 
         # CONSULTAR — todos los roles
         if has_permission(role, "consult"):
@@ -239,45 +265,38 @@ def start_app():
 
             def download_credentials():
                 import pyzipper
-                from config.paths import get_user_dir
-                from auth.auth import verify_password
-                from db.database import get_connection
+                from config.paths import get_user_dir as _get_dir
 
-                # Pedir contraseña para verificar y cifrar el ZIP
                 pwd = simpledialog.askstring(
                     "Confirmar identidad",
-                    "Ingresa tu contraseña para descargar las credenciales:",
+                    "Ingresa tu contrasena para descargar las credenciales:",
                     show="*", parent=dash)
                 if not pwd:
                     return
 
-                con = get_connection()
-                cur = con.cursor()
-                cur.execute("SELECT password_hash, salt FROM users WHERE username=?", (username,))
-                row = cur.fetchone()
-                con.close()
-
-                if not row or not verify_password(pwd, row[1], row[0]):
-                    messagebox.showerror("Contraseña incorrecta",
-                                         "La contraseña ingresada no es válida.", parent=dash)
+                if not api.verify_password(username, pwd):
+                    messagebox.showerror("Contrasena incorrecta",
+                                         "La contrasena ingresada no es valida.", parent=dash)
                     return
 
-                dest = filedialog.askdirectory(
-                    title="Selecciona carpeta de destino", parent=dash)
-                if not dest:
-                    return
+                d = _get_dir(username)
+                _sync_local_keys(username, d, api)
 
-                dirs = get_user_dir(username)
                 archivos = [
-                    (os.path.join(dirs["keys"],  f"{username}_private.pem"), f"{username}_private.pem"),
-                    (os.path.join(dirs["keys"],  f"{username}_public.pem"),  f"{username}_public.pem"),
-                    (os.path.join(dirs["certs"], f"{username}_cert.json"),   f"{username}_cert.json"),
+                    (os.path.join(d["keys"],  f"{username}_private.pem"), f"{username}_private.pem"),
+                    (os.path.join(d["keys"],  f"{username}_public.pem"),  f"{username}_public.pem"),
+                    (os.path.join(d["certs"], f"{username}_cert.json"),   f"{username}_cert.json"),
                 ]
                 faltantes = [n for p, n in archivos if not os.path.exists(p)]
                 if faltantes:
                     messagebox.showerror(
                         "Archivos no encontrados",
                         "No se encontraron:\n" + "\n".join(faltantes), parent=dash)
+                    return
+
+                dest = filedialog.askdirectory(
+                    title="Selecciona carpeta de destino", parent=dash)
+                if not dest:
                     return
 
                 zip_path = os.path.join(dest, f"{username}_credenciales.zip")
@@ -291,7 +310,7 @@ def start_app():
                 messagebox.showinfo(
                     "Descarga completa",
                     f"ZIP cifrado guardado en:\n{zip_path}\n\n"
-                    "Usa tu contraseña de cuenta para abrirlo.", parent=dash)
+                    "Usa tu contrasena de cuenta para abrirlo.", parent=dash)
 
             _btn(sec, "Descargar Certificado y Claves",
                  download_credentials, bg=NEUTRAL, full=True)
@@ -314,11 +333,23 @@ def start_app():
             row = tk.Frame(sec, bg=CARD)
             row.pack(fill="x")
 
+            def _check_keys(parent_win):
+                if not _has_local_keys(username):
+                    messagebox.showwarning(
+                        "Credenciales no encontradas",
+                        "Primero descarga tus credenciales usando el boton\n"
+                        "'Descargar Certificado y Claves'.",
+                        parent=parent_win)
+                    return False
+                return True
+
             def sign():
                 msg = entry_message.get()
                 if not msg:
-                    messagebox.showwarning("Campo vacío",
+                    messagebox.showwarning("Campo vacio",
                                            "Escribe un mensaje primero.", parent=dash)
+                    return
+                if not _check_keys(dash):
                     return
                 sign_message(username, msg)
                 messagebox.showinfo("Firmado",
@@ -327,6 +358,8 @@ def start_app():
             def sign_file_ui():
                 path = filedialog.askopenfilename(parent=dash)
                 if not path:
+                    return
+                if not _check_keys(dash):
                     return
                 sign_file(username, path)
                 messagebox.showinfo("Firmado",
@@ -354,6 +387,8 @@ def start_app():
             row2.pack(fill="x")
 
             def verify():
+                if not _check_keys(dash):
+                    return
                 msg = entry_verify_msg.get()
                 sig = filedialog.askopenfilename(
                     parent=dash, filetypes=[("Firma", "*.sig")])
@@ -366,6 +401,8 @@ def start_app():
                                          "La firma no es valida o fue alterada.", parent=dash)
 
             def verify_file_ui():
+                if not _check_keys(dash):
+                    return
                 path = filedialog.askopenfilename(parent=dash)
                 if not path:
                     return
@@ -407,7 +444,7 @@ def start_app():
 
             def refresh_pending():
                 pending_lb.delete(0, tk.END)
-                pending = get_pending_users()
+                pending = api.get_pending_users()
                 if pending:
                     no_pending_lbl.pack_forget()
                     pending_frame.pack(fill="x", pady=(2, 10))
@@ -425,7 +462,6 @@ def start_app():
                     return
                 uname = pending_lb.get(sel[0]).strip().split()[0]
 
-                # Diálogo de selección de rol
                 role_dialog = tk.Toplevel(dash)
                 role_dialog.title("Asignar Rol")
                 role_dialog.configure(bg=CARD)
@@ -448,7 +484,7 @@ def start_app():
                 def confirm_approve():
                     selected_role = role_var.get()
                     role_dialog.destroy()
-                    approve_user(uname, username, selected_role)
+                    api.approve_user(uname, username, selected_role)
                     messagebox.showinfo(
                         "Cuenta activada",
                         f"La cuenta '{uname}' fue activada con rol '{selected_role}'.", parent=dash)
@@ -459,11 +495,18 @@ def start_app():
 
                 role_dialog.wait_window()
 
-            refresh_pending()
+            def _auto_refresh_pending():
+                try:
+                    refresh_pending()
+                except tk.TclError:
+                    return
+                _pending_job[0] = dash.after(10000, _auto_refresh_pending)
+
+            _auto_refresh_pending()
             _btn(sec_pending, "Aprobar cuenta seleccionada", do_approve,
                  bg=SUCCESS, full=True, pady=9)
 
-        # ADMIN
+        # ADMIN — Logs y panel
         if role == "admin":
             sec = _card(content, "Administracion del Sistema")
             row3 = tk.Frame(sec, bg=CARD)
@@ -497,7 +540,7 @@ def start_app():
                 txt.pack(fill="both", expand=True)
                 sb.config(command=txt.yview)
 
-                for user, action, timestamp in get_logs():
+                for user, action, timestamp in api.get_logs():
                     txt.insert(tk.END, f"{timestamp[:19]}  |  {user:<18}|  {action}\n")
                 txt.config(state="disabled")
 
@@ -509,7 +552,13 @@ def start_app():
 
         # Footer
         _sep(content)
-        _btn(content, "Cerrar sesion", dash.destroy,
+
+        def logout():
+            if _pending_job[0]:
+                dash.after_cancel(_pending_job[0])
+            dash.destroy()
+
+        _btn(content, "Cerrar sesion", logout,
              bg=DANGER, full=True, pady=10)
 
     # ── Ventana de login ─────────────────────────────────────
@@ -519,18 +568,16 @@ def start_app():
     root.resizable(False, False)
     _center(root, 420, 500)
 
-    # Header
     hdr = tk.Frame(root, bg=HDR_BG, height=90)
     hdr.pack(fill="x")
     hdr.pack_propagate(False)
-    tk.Label(hdr, text="Sistema de Gestión de Identidades",
+    tk.Label(hdr, text="Sistema de Gestion de Identidades",
              font=(FONT, 15, "bold"), bg=HDR_BG, fg=HDR_FG
              ).place(relx=0.5, rely=0.38, anchor="center")
     tk.Label(hdr, text=" ",
              font=(FONT, 9), bg=HDR_BG, fg=HDR_SUB
              ).place(relx=0.5, rely=0.72, anchor="center")
 
-    # Card de login
     outer = tk.Frame(root, bg=BG)
     outer.pack(fill="both", expand=True, padx=40, pady=28)
 
@@ -546,7 +593,7 @@ def start_app():
              ).pack(anchor="w", pady=(0, 16))
 
     entry_user = _field(inner, "Usuario")
-    entry_pass = _field(inner, "Contraseña", show="*")
+    entry_pass = _field(inner, "Contrasena", show="*")
 
     tk.Frame(inner, bg=BG, height=4).pack()
 

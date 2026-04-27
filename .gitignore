@@ -1,0 +1,29 @@
+# Base de datos local
+sistema.db
+
+# Datos de usuarios locales
+data/
+
+# Configuracion del servidor (cada cliente tiene la suya)
+server_config.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# Entornos virtuales
+venv/
+env/
+.env/
+
+# Variables de entorno
+.env

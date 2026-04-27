@@ -88,17 +88,19 @@ def get_revoked_certs():
 
 
 def _update_cert_status(username, status, reason=""):
-    from config.paths import get_user_dir
-    dirs = get_user_dir(username)
-    cert_path = os.path.join(dirs["certs"], f"{username}_cert.json")
-    if os.path.exists(cert_path):
-        with open(cert_path) as f:
-            cert = json.load(f)
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute("SELECT cert_json FROM user_data WHERE username=?", (username,))
+    row = cur.fetchone()
+    if row and row[0]:
+        cert = json.loads(row[0])
         cert["status"] = status
         if reason:
             cert["revocation_reason"] = reason
-        with open(cert_path, "w") as f:
-            json.dump(cert, f, indent=4)
+        cur.execute("UPDATE user_data SET cert_json=? WHERE username=?",
+                    (json.dumps(cert, indent=4), username))
+        con.commit()
+    con.close()
 
 
 def get_pending_users():

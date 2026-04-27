@@ -1,14 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from auth.auth import register_user
-from db.admin_queries import (
-    get_active_users,
-    get_all_users_with_status,
-    revoke_identity,
-    deactivate_user,
-    get_revoked_certs,
-)
+from client.api_client import get_client
 
 # ── Paleta (misma que login_window) ─────────────────────────
 BG       = "#F1F5F9"
@@ -114,7 +107,6 @@ def open_admin_panel(admin_username):
     win.resizable(False, False)
     _center(win, 680, 580)
 
-    # Header
     hdr = tk.Frame(win, bg=HDR_BG, height=60)
     hdr.pack(fill="x")
     hdr.pack_propagate(False)
@@ -125,7 +117,6 @@ def open_admin_panel(admin_username):
              font=(FONT, 8), bg=HDR_BG, fg=HDR_SUB
              ).place(relx=0.5, rely=0.74, anchor="center")
 
-    # Notebook con estilo
     style = ttk.Style()
     style.theme_use("default")
     style.configure("Admin.TNotebook",
@@ -150,7 +141,7 @@ def open_admin_panel(admin_username):
     nb.add(tab_rev,  text="  Revocacion  ")
     nb.add(tab_baja, text="  Baja  ")
 
-    rev_refresher = [None]  # contenedor mutable para evitar referencia circular
+    rev_refresher = [None]
 
     refresh_baja = _build_baja(tab_baja, admin_username,
                                on_deactivate=lambda: rev_refresher[0] and rev_refresher[0]())
@@ -164,6 +155,7 @@ def open_admin_panel(admin_username):
 # ── RF01: Alta de identidad ──────────────────────────────────
 
 def _build_alta(parent, admin_username, on_register=None):
+    api = get_client()
 
     outer = tk.Frame(parent, bg=BG)
     outer.pack(fill="both", expand=True, padx=24, pady=20)
@@ -177,7 +169,6 @@ def _build_alta(parent, admin_username, on_register=None):
     body = tk.Frame(card, bg=CARD)
     body.pack(fill="x", padx=20, pady=16)
 
-    # Columna izquierda / derecha con grid
     body.columnconfigure(0, weight=1)
     body.columnconfigure(1, weight=1)
 
@@ -195,8 +186,8 @@ def _build_alta(parent, admin_username, on_register=None):
         e.pack(fill="x", padx=10, pady=7)
         return e
 
-    lbl("Usuario",             0, 0)
-    lbl("Rol",                 0, 1)
+    lbl("Usuario",              0, 0)
+    lbl("Rol",                  0, 1)
     e_user = entry_grid(0, 0)
 
     role_var = tk.StringVar(value="externo")
@@ -210,12 +201,11 @@ def _build_alta(parent, admin_username, on_register=None):
     )
     role_cb.pack(fill="x", padx=6, pady=6)
 
-    lbl("Contraseña",          2, 0)
-    lbl("Confirmar contraseña", 2, 1)
+    lbl("Contrasena",           2, 0)
+    lbl("Confirmar contrasena", 2, 1)
     e_pass  = entry_grid(2, 0, show="*")
     e_pass2 = entry_grid(2, 1, show="*")
 
-    # Feedback label
     msg_var = tk.StringVar()
     msg_lbl = tk.Label(body, textvariable=msg_var,
                        font=(FONT, 9, "bold"), bg=CARD)
@@ -229,16 +219,16 @@ def _build_alta(parent, admin_username, on_register=None):
 
         msg_lbl.config(fg=DANGER)
         if not username or not password:
-            msg_var.set("Usuario y contraseña son obligatorios.")
+            msg_var.set("Usuario y contrasena son obligatorios.")
             return
         if len(password) < 6:
-            msg_var.set("La contraseña debe tener al menos 6 caracteres.")
+            msg_var.set("La contrasena debe tener al menos 6 caracteres.")
             return
         if password != password2:
-            msg_var.set("Las contraseñas no coinciden.")
+            msg_var.set("Las contrasenias no coinciden.")
             return
 
-        if register_user(username, password, role):
+        if api.admin_create_user(username, password, role):
             msg_lbl.config(fg=SUCCESS)
             msg_var.set(f"Identidad '{username}' registrada correctamente.")
             e_user.delete(0, tk.END)
@@ -258,11 +248,11 @@ def _build_alta(parent, admin_username, on_register=None):
 # ── RF02: Revocacion de identidad ────────────────────────────
 
 def _build_revocacion(parent, admin_username, on_revoke=None):
+    api = get_client()
 
     outer = tk.Frame(parent, bg=BG)
     outer.pack(fill="both", expand=True, padx=24, pady=20)
 
-    # Tarjeta superior: revocar
     top_card = tk.Frame(outer, bg=CARD,
                         highlightbackground=BORDER, highlightthickness=1)
     top_card.pack(fill="x", pady=(0, 12))
@@ -277,7 +267,7 @@ def _build_revocacion(parent, admin_username, on_revoke=None):
 
     def refresh_users():
         user_list.delete(0, tk.END)
-        for uname, role in get_active_users():
+        for uname, role in api.get_active_users():
             if uname != admin_username:
                 user_list.insert(tk.END, f"  {uname:<22} [{role}]")
 
@@ -302,7 +292,7 @@ def _build_revocacion(parent, admin_username, on_revoke=None):
             f"Revocar el certificado de '{username}'?\n\nMotivo: {reason}",
             parent=top_card.winfo_toplevel(),
         ):
-            revoke_identity(username, reason, admin_username)
+            api.revoke_identity(username, reason, admin_username)
             messagebox.showinfo(
                 "Certificado revocado",
                 f"El certificado de '{username}' fue revocado\n"
@@ -318,7 +308,6 @@ def _build_revocacion(parent, admin_username, on_revoke=None):
     _btn(top_body, "Revocar Certificado", do_revoke,
          bg=DANGER, full=True, pady=9)
 
-    # Tarjeta inferior: CRL
     bot_card = tk.Frame(outer, bg=CARD,
                         highlightbackground=BORDER, highlightthickness=1)
     bot_card.pack(fill="both", expand=True)
@@ -352,11 +341,21 @@ def _build_revocacion(parent, admin_username, on_revoke=None):
     def refresh_crl():
         for row in tree.get_children():
             tree.delete(row)
-        for uname, reason, revoked_at, revoked_by in get_revoked_certs():
+        for uname, reason, revoked_at, revoked_by in api.get_revoked_certs():
             tree.insert("", "end",
                         values=(uname, reason, revoked_at[:19], revoked_by))
 
     refresh_crl()
+
+    def _auto_refresh():
+        try:
+            refresh_users()
+            refresh_crl()
+        except tk.TclError:
+            return
+        outer.after(10000, _auto_refresh)
+
+    outer.after(10000, _auto_refresh)
 
     return refresh_users
 
@@ -364,6 +363,7 @@ def _build_revocacion(parent, admin_username, on_revoke=None):
 # ── RF03: Baja de identidad ──────────────────────────────────
 
 def _build_baja(parent, admin_username, on_deactivate=None):
+    api = get_client()
 
     outer = tk.Frame(parent, bg=BG)
     outer.pack(fill="both", expand=True, padx=24, pady=20)
@@ -377,7 +377,6 @@ def _build_baja(parent, admin_username, on_deactivate=None):
     body = tk.Frame(card, bg=CARD)
     body.pack(fill="both", expand=True, padx=20, pady=16)
 
-    # Aviso
     warn = tk.Frame(body, bg="#FEF2F2",
                     highlightbackground="#FECACA", highlightthickness=1)
     warn.pack(fill="x", pady=(0, 14))
@@ -397,7 +396,7 @@ def _build_baja(parent, admin_username, on_deactivate=None):
 
     def refresh_users():
         user_list.delete(0, tk.END)
-        for uname, role, status in get_all_users_with_status():
+        for uname, role, status in api.get_all_users_with_status():
             if uname != admin_username and status != "inactive":
                 label = STATUS_ES.get(status, status)
                 user_list.insert(
@@ -420,7 +419,7 @@ def _build_baja(parent, admin_username, on_deactivate=None):
             parent=card.winfo_toplevel(),
             icon="warning",
         ):
-            deactivate_user(username, admin_username)
+            api.deactivate_user(username, admin_username)
             messagebox.showinfo(
                 "Baja realizada",
                 f"La identidad '{username}' fue dada de baja del sistema.",
@@ -432,5 +431,14 @@ def _build_baja(parent, admin_username, on_deactivate=None):
 
     _btn(body, "Dar de Baja", do_deactivate,
          bg=DANGER, full=True, pady=10)
+
+    def _auto_refresh():
+        try:
+            refresh_users()
+        except tk.TclError:
+            return
+        outer.after(10000, _auto_refresh)
+
+    outer.after(10000, _auto_refresh)
 
     return refresh_users
