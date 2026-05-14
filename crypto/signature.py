@@ -69,7 +69,7 @@ def verify_signature(username, message, signature_file):
         )
         return True
 
-    except:
+    except Exception:
         return False
 
 
@@ -140,5 +140,5 @@ def verify_file(username, file_path):
 
         return True
 
-    except:
+    except Exception:
         return False

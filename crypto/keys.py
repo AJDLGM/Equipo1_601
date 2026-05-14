@@ -1,45 +1,29 @@
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
-from config.paths import get_user_dir
-import os
 
 
 def generate_keys(username):
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public_key  = private_key.public_key()
 
-    dirs = get_user_dir(username)
-
-    private_key = rsa.generate_private_key(
-        public_exponent=65537,
-        key_size=2048
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    public_pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
     )
 
-    public_key = private_key.public_key()
-
-    private_path = os.path.join(
-        dirs["keys"],
-        f"{username}_private.pem"
+    from db.database import get_connection
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute("INSERT OR IGNORE INTO user_data (username) VALUES (?)", (username,))
+    cur.execute(
+        "UPDATE user_data SET private_key=?, public_key=? WHERE username=?",
+        (private_pem, public_pem, username),
     )
-
-    public_path = os.path.join(
-        dirs["keys"],
-        f"{username}_public.pem"
-    )
-
-    with open(private_path, "wb") as f:
-        f.write(
-            private_key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption()
-            )
-        )
-
-    with open(public_path, "wb") as f:
-        f.write(
-            public_key.public_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo
-            )
-        )
-
+    con.commit()
+    con.close()
     return True

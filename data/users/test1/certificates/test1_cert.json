@@ -1,0 +1,8 @@
+{
+    "user": "test1",
+    "issued_at": "2026-04-24 04:21:01.228379",
+    "expires_at": "2027-04-24 04:21:01.228379",
+    "signature": "c571803b530d33667987c371468b28529ec72bad9fc9657c716377321595f4a5",
+    "status": "inactive",
+    "revocation_reason": "Baja administrativa"
+}

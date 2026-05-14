@@ -1,0 +1,8 @@
+{
+    "user": "Prueba_revocacion",
+    "issued_at": "2026-04-21 00:36:22.104013",
+    "expires_at": "2027-04-21 00:36:22.105069",
+    "signature": "b4df72a3b1132c1799e84f9fb21f0a238028a460f3796ce9469d76c6231754bc",
+    "status": "revoked",
+    "revocation_reason": "Prueba"
+}
