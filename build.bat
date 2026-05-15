@@ -23,7 +23,7 @@ if errorlevel 1 (
 )
 
 echo [2/3] Compilando la aplicacion...
-python -m PyInstaller main.spec --clean --noconfirm
+python -m PyInstaller main.py --name SistemaIdentidad --onedir --windowed --clean --noconfirm
 if errorlevel 1 (
     echo ERROR: Fallo la compilacion.
     pause
