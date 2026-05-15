@@ -280,7 +280,7 @@ def start_app():
                     return
 
                 if not api.verify_password(username, pwd):
-                    messagebox.showerror("Contrasena incorrecta",
+                    messagebox.showerror("Contraseña incorrecta",
                                          "La contraseña ingresada no es valida.", parent=dash)
                     return
 
@@ -576,7 +576,7 @@ def start_app():
     hdr = tk.Frame(root, bg=HDR_BG, height=90)
     hdr.pack(fill="x")
     hdr.pack_propagate(False)
-    tk.Label(hdr, text="Sistema de Gestion de Identidades",
+    tk.Label(hdr, text="Sistema de Gestión de Identidades",
              font=(FONT, 15, "bold"), bg=HDR_BG, fg=HDR_FG
              ).place(relx=0.5, rely=0.38, anchor="center")
     tk.Label(hdr, text=" ",
@@ -593,16 +593,16 @@ def start_app():
     inner = tk.Frame(card, bg=CARD)
     inner.pack(fill="both", expand=True, padx=28, pady=24)
 
-    tk.Label(inner, text="Iniciar sesion",
+    tk.Label(inner, text="Iniciar sesión",
              font=(FONT, 14, "bold"), bg=CARD, fg=TEXT
              ).pack(anchor="w", pady=(0, 16))
 
     entry_user = _field(inner, "Usuario")
-    entry_pass = _field(inner, "Contrasena", show="*")
+    entry_pass = _field(inner, "Contraseña", show="*")
 
     tk.Frame(inner, bg=BG, height=4).pack()
 
-    _btn(inner, "Iniciar sesion", login,
+    _btn(inner, "Iniciar sesión", login,
          bg=PRIMARY, full=True, pady=11)
 
     _sep(inner)
