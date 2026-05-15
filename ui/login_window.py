@@ -147,7 +147,7 @@ def start_app():
         password = entry_pass.get()
         if not user or not password:
             messagebox.showwarning("Campos vacios",
-                                   "Ingresa usuario y contrasena.", parent=root)
+                                   "Ingresa usuario y contraseña.", parent=root)
             return
         success, role = api.login(user, password)
         if success:
@@ -160,7 +160,7 @@ def start_app():
         else:
             messagebox.showerror(
                 "Acceso denegado",
-                "Usuario o contrasena incorrectos,\n"
+                "Usuario o contraseña incorrectos,\n"
                 "o la cuenta esta desactivada.", parent=root)
 
     def register():
@@ -168,7 +168,7 @@ def start_app():
         password = entry_pass.get()
         if not user or not password:
             messagebox.showwarning("Campos vacios",
-                                   "Ingresa usuario y contrasena.", parent=root)
+                                   "Ingresa usuario y contraseña.", parent=root)
             return
         if api.register(user, password):
             messagebox.showinfo(
@@ -187,14 +187,19 @@ def start_app():
             return
         status = cert.get("status", "active").upper()
         reason = cert.get("revocation_reason", "—")
+        signed_by = cert.get("signed_by", "—")
+        algorithm = cert.get("signature_algorithm", "SHA256-hash")
+        signature = cert.get("signature", "")
         messagebox.showinfo(
             "Certificado Digital",
             f"Usuario      : {cert['user']}\n"
             f"Emitido      : {cert['issued_at'][:19]}\n"
             f"Expira       : {cert['expires_at'][:19]}\n"
             f"Estado       : {status}\n"
+            f"Firmado por  : {signed_by}\n"
+            f"Algoritmo    : {algorithm}\n"
             f"Motivo rev.  : {reason}\n\n"
-            f"Hash         : {cert['signature'][:40]}...",
+            f"Firma        : {signature[:40]}...",
         )
 
     def open_dashboard(username, role):
@@ -269,14 +274,14 @@ def start_app():
 
                 pwd = simpledialog.askstring(
                     "Confirmar identidad",
-                    "Ingresa tu contrasena para descargar las credenciales:",
+                    "Ingresa tu contraseña para descargar las credenciales:",
                     show="*", parent=dash)
                 if not pwd:
                     return
 
                 if not api.verify_password(username, pwd):
-                    messagebox.showerror("Contrasena incorrecta",
-                                         "La contrasena ingresada no es valida.", parent=dash)
+                    messagebox.showerror("Contraseña incorrecta",
+                                         "La contraseña ingresada no es valida.", parent=dash)
                     return
 
                 d = _get_dir(username)
@@ -310,7 +315,7 @@ def start_app():
                 messagebox.showinfo(
                     "Descarga completa",
                     f"ZIP cifrado guardado en:\n{zip_path}\n\n"
-                    "Usa tu contrasena de cuenta para abrirlo.", parent=dash)
+                    "Usa tu contraseña de cuenta para abrirlo.", parent=dash)
 
             _btn(sec, "Descargar Certificado y Claves",
                  download_credentials, bg=NEUTRAL, full=True)
@@ -571,7 +576,7 @@ def start_app():
     hdr = tk.Frame(root, bg=HDR_BG, height=90)
     hdr.pack(fill="x")
     hdr.pack_propagate(False)
-    tk.Label(hdr, text="Sistema de Gestion de Identidades",
+    tk.Label(hdr, text="Sistema de Gestión de Identidades",
              font=(FONT, 15, "bold"), bg=HDR_BG, fg=HDR_FG
              ).place(relx=0.5, rely=0.38, anchor="center")
     tk.Label(hdr, text=" ",
@@ -588,16 +593,16 @@ def start_app():
     inner = tk.Frame(card, bg=CARD)
     inner.pack(fill="both", expand=True, padx=28, pady=24)
 
-    tk.Label(inner, text="Iniciar sesion",
+    tk.Label(inner, text="Iniciar sesión",
              font=(FONT, 14, "bold"), bg=CARD, fg=TEXT
              ).pack(anchor="w", pady=(0, 16))
 
     entry_user = _field(inner, "Usuario")
-    entry_pass = _field(inner, "Contrasena", show="*")
+    entry_pass = _field(inner, "Contraseña", show="*")
 
     tk.Frame(inner, bg=BG, height=4).pack()
 
-    _btn(inner, "Iniciar sesion", login,
+    _btn(inner, "Iniciar sesión", login,
          bg=PRIMARY, full=True, pady=11)
 
     _sep(inner)

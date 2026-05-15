@@ -202,7 +202,7 @@ def _build_alta(parent, admin_username, on_register=None):
     role_cb.pack(fill="x", padx=6, pady=6)
 
     lbl("Contrasena",           2, 0)
-    lbl("Confirmar contrasena", 2, 1)
+    lbl("Confirmar contraseña", 2, 1)
     e_pass  = entry_grid(2, 0, show="*")
     e_pass2 = entry_grid(2, 1, show="*")
 
@@ -219,10 +219,10 @@ def _build_alta(parent, admin_username, on_register=None):
 
         msg_lbl.config(fg=DANGER)
         if not username or not password:
-            msg_var.set("Usuario y contrasena son obligatorios.")
+            msg_var.set("Usuario y contraseña son obligatorios.")
             return
         if len(password) < 6:
-            msg_var.set("La contrasena debe tener al menos 6 caracteres.")
+            msg_var.set("La contraseña debe tener al menos 6 caracteres.")
             return
         if password != password2:
             msg_var.set("Las contrasenias no coinciden.")

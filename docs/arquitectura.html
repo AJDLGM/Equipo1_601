@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sistema de Identidad Digital — Arquitectura</title>
+  <style>
+    :root {
+      --bg:        #0F172A;
+      --surface:   #1E293B;
+      --surface2:  #334155;
+      --border:    #475569;
+      --primary:   #3B82F6;
+      --primary-d: #1D4ED8;
+      --accent:    #06B6D4;
+      --green:     #22C55E;
+      --yellow:    #EAB308;
+      --red:       #EF4444;
+      --purple:    #A855F7;
+      --text:      #F1F5F9;
+      --muted:     #94A3B8;
+      --radius:    12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #1E293B 0%, #0F172A 60%, #1a1040 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 48px 40px 40px;
+      text-align: center;
+    }
+    header .badge {
+      display: inline-block;
+      background: rgba(59,130,246,.15);
+      border: 1px solid rgba(59,130,246,.4);
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 4px 14px;
+      border-radius: 999px;
+      margin-bottom: 20px;
+    }
+    header h1 {
+      font-size: 2.6rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, #F1F5F9, #94A3B8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px;
+    }
+    header p {
+      color: var(--muted);
+      font-size: 1.05rem;
+      max-width: 620px;
+      margin: 0 auto;
+    }
+
+    /* ── Layout ── */
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    section { margin-bottom: 64px; }
+
+    h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h2::before {
+      content: '';
+      display: inline-block;
+      width: 4px;
+      height: 22px;
+      background: var(--primary);
+      border-radius: 2px;
+    }
+
+    h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      margin-bottom: 14px;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+    @media (max-width: 700px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      header h1 { font-size: 1.8rem; }
+    }
+
+    /* ── Arquitectura SVG ── */
+    .arch-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px 24px;
+      overflow-x: auto;
+    }
+    .arch-wrap svg { display: block; margin: 0 auto; }
+
+    /* ── Capas ── */
+    .layer {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .layer-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .layer-icon {
+      width: 38px; height: 38px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .layer-header h3 {
+      margin: 0;
+      font-size: .95rem;
+      color: var(--text);
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .layer-header p { font-size: .82rem; color: var(--muted); margin-top: 2px; }
+    .layer-body { padding: 16px 20px; }
+
+    .file-list { list-style: none; }
+    .file-list li {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(71,85,105,.35);
+      font-size: .88rem;
+    }
+    .file-list li:last-child { border-bottom: none; }
+    .file-name {
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      color: var(--accent);
+      font-size: .82rem;
+      white-space: nowrap;
+    }
+    .file-desc { color: var(--muted); }
+
+    /* ── API table ── */
+    .api-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    .api-table th {
+      text-align: left;
+      padding: 10px 14px;
+      background: var(--surface2);
+      color: var(--muted);
+      font-size: .78rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+    .api-table th:first-child { border-radius: 8px 0 0 8px; }
+    .api-table th:last-child  { border-radius: 0 8px 8px 0; }
+    .api-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(71,85,105,.3);
+      color: var(--text);
+      vertical-align: middle;
+    }
+    .api-table tr:last-child td { border-bottom: none; }
+    .api-table tr:hover td { background: rgba(255,255,255,.03); }
+
+    .method {
+      display: inline-block;
+      font-family: monospace;
+      font-size: .75rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .get  { background: rgba(34,197,94,.15);  color: #4ade80; }
+    .post { background: rgba(59,130,246,.15); color: #60a5fa; }
+
+    .route {
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: .82rem;
+      color: #e2e8f0;
+    }
+    .route span { color: var(--yellow); }
+
+    /* ── DB tables ── */
+    .db-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 700px) { .db-grid { grid-template-columns: 1fr; } }
+
+    .db-table-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .db-table-header {
+      padding: 12px 16px;
+      background: var(--surface2);
+      display: flex; align-items: center; gap: 8px;
+      font-weight: 600; font-size: .9rem;
+    }
+    .db-table-header .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+    }
+    .db-field {
+      padding: 8px 16px;
+      border-bottom: 1px solid rgba(71,85,105,.25);
+      display: flex; align-items: baseline; gap: 10px;
+      font-size: .84rem;
+    }
+    .db-field:last-child { border-bottom: none; }
+    .field-name {
+      font-family: monospace;
+      color: var(--accent);
+      min-width: 130px;
+    }
+    .field-type { color: var(--purple); font-size: .78rem; font-family: monospace; }
+    .field-note { color: var(--muted); font-size: .78rem; }
+    .pk  { color: var(--yellow); font-size: .7rem; font-weight: 700; margin-left: 4px; }
+
+    /* ── Roles ── */
+    .roles-wrap { display: flex; flex-direction: column; gap: 12px; }
+    .role-row {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .role-label {
+      min-width: 150px;
+      padding: 14px 18px;
+      font-weight: 600;
+      font-size: .9rem;
+      border-right: 1px solid var(--border);
+    }
+    .role-perms {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 12px 18px;
+    }
+    .perm {
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: .78rem;
+      font-weight: 600;
+    }
+    .p-consult   { background: rgba(34,197,94,.12);  color: #4ade80; border: 1px solid rgba(34,197,94,.3); }
+    .p-edit      { background: rgba(59,130,246,.12); color: #60a5fa; border: 1px solid rgba(59,130,246,.3); }
+    .p-authorize { background: rgba(234,179,8,.12);  color: #facc15; border: 1px solid rgba(234,179,8,.3); }
+    .p-templates { background: rgba(168,85,247,.12); color: #c084fc; border: 1px solid rgba(168,85,247,.3); }
+
+    .r-admin        { border-left: 4px solid var(--purple); }
+    .r-coordinador  { border-left: 4px solid var(--primary); }
+    .r-operativo    { border-left: 4px solid var(--green); }
+    .r-externo      { border-left: 4px solid var(--yellow); }
+
+    /* ── Lifecycle ── */
+    .lifecycle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px 24px;
+    }
+    .lc-step {
+      text-align: center;
+      padding: 0 12px;
+    }
+    .lc-circle {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px;
+      margin: 0 auto 10px;
+      border: 2px solid;
+    }
+    .lc-pending   .lc-circle { background: rgba(234,179,8,.1);  border-color: var(--yellow); }
+    .lc-active    .lc-circle { background: rgba(34,197,94,.1);  border-color: var(--green); }
+    .lc-revoked   .lc-circle { background: rgba(239,68,68,.1);  border-color: var(--red); }
+    .lc-approved  .lc-circle { background: rgba(59,130,246,.1); border-color: var(--primary); }
+    .lc-step h4   { font-size: .88rem; font-weight: 600; margin-bottom: 4px; }
+    .lc-step p    { font-size: .75rem; color: var(--muted); max-width: 110px; margin: 0 auto; }
+
+    .lc-arrow {
+      font-size: 1.4rem;
+      color: var(--border);
+      padding: 0 4px;
+      margin-bottom: 32px;
+    }
+    .lc-label {
+      font-size: .7rem;
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: 6px;
+    }
+    .lc-col { display: flex; flex-direction: column; align-items: center; }
+
+    /* ── Security ── */
+    .sec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 700px) { .sec-grid { grid-template-columns: 1fr; } }
+
+    .sec-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      display: flex;
+      gap: 16px;
+    }
+    .sec-icon {
+      font-size: 28px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .sec-card h4 { font-size: .93rem; font-weight: 600; margin-bottom: 6px; }
+    .sec-card p  { font-size: .82rem; color: var(--muted); line-height: 1.5; }
+    .sec-card code {
+      font-family: monospace;
+      background: rgba(255,255,255,.07);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: .8rem;
+      color: var(--accent);
+    }
+
+    /* ── Deploy ── */
+    .deploy-row {
+      display: flex;
+      gap: 16px;
+    }
+    .deploy-card {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+    }
+    .deploy-card h4 { font-size: .93rem; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .deploy-card ul { list-style: none; }
+    .deploy-card ul li {
+      font-size: .84rem;
+      color: var(--muted);
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(71,85,105,.2);
+      display: flex; align-items: flex-start; gap: 8px;
+    }
+    .deploy-card ul li:last-child { border-bottom: none; }
+    .deploy-card ul li::before { content: '›'; color: var(--primary); font-weight: 700; flex-shrink: 0; }
+    @media (max-width: 700px) { .deploy-row { flex-direction: column; } }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 32px;
+      color: var(--muted);
+      font-size: .8rem;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════ HEADER ══════════════════ -->
+<header>
+  <div class="badge">Documentación Técnica</div>
+  <h1>Sistema de Identidad Digital</h1>
+  <p>Arquitectura, diseño y componentes del sistema de gestión de usuarios con firma criptográfica</p>
+</header>
+
+<main>
+
+  <!-- ══════════════════ 1. ARQUITECTURA GENERAL ══════════════════ -->
+  <section>
+    <h2>Arquitectura General</h2>
+    <div class="arch-wrap">
+      <svg width="900" height="420" viewBox="0 0 900 420" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#475569"/>
+          </marker>
+          <marker id="arr2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#3B82F6"/>
+          </marker>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+            <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <!-- ─── CLIENTE BOX ─── -->
+        <rect x="20" y="20" width="370" height="280" rx="14" fill="#1E293B" stroke="#3B82F6" stroke-width="1.5"/>
+        <rect x="20" y="20" width="370" height="38" rx="14" fill="#3B82F6"/>
+        <rect x="20" y="44" width="370" height="14" fill="#3B82F6"/>
+        <text x="205" y="45" text-anchor="middle" fill="white" font-family="Segoe UI,sans-serif" font-size="13" font-weight="600">CLIENTE — PC del usuario</text>
+
+        <!-- main.py -->
+        <rect x="50" y="78" width="140" height="38" rx="8" fill="#334155" stroke="#475569" stroke-width="1"/>
+        <text x="120" y="94" text-anchor="middle" fill="#06B6D4" font-family="monospace" font-size="11">main.py</text>
+        <text x="120" y="108" text-anchor="middle" fill="#94A3B8" font-family="Segoe UI,sans-serif" font-size="10">Punto de entrada</text>
+
+        <!-- UI -->
+        <rect x="50" y="136" width="140" height="54" rx="8" fill="#334155" stroke="#475569" stroke-width="1"/>
+        <text x="120" y="153" text-anchor="middle" fill="#06B6D4" font-family="monospace" font-size="11">ui/login_window.py</text>
+        <text x="120" y="166" text-anchor="middle" fill="#94A3B8" font-family="Segoe UI,sans-serif" font-size="10">Login · Firma · Verificación</text>
+        <text x="120" y="180" text-anchor="middle" fill="#06B6D4" font-family="monospace" font-size="11">ui/admin_panel.py</text>
+
+        <!-- crypto client -->
+        <rect x="50" y="210" width="140" height="54" rx="8" fill="#334155" stroke="#475569" stroke-width="1"/>
+        <text x="120" y="227" text-anchor="middle" fill="#06B6D4" font-family="monospace" font-size="11">crypto/signature.py</text>
+        <text x="120" y="241" text-anchor="middle" fill="#94A3B8" font-family="Segoe UI,sans-serif" font-size="10">Firma RSA local</text>
+        <text x="120" y="255" text-anchor="middle" fill="#94A3B8" font-family="Segoe UI,sans-serif" font-size="10">de archivos/mensajes</text>
+
+        <!-- api_client -->
+        <rect x="220" y="136" width="148" height="54" rx="8" fill="#1a2744" stroke="#3B82F6" stroke-width="1.5"/>
+        <text x="294" y="155" text-anchor="middle" fill="#60a5fa" font-family="monospace" font-size="11">client/api_client.py</text>
+        <text x="294" y="170" text-anchor="middle" fill="#94A3B8" font-family="Segoe UI,sans-serif" font-size="10">HTTP + Bearer Token</text>
+        <text x="294" y="183" text-anchor="middle" fill="#94A3B8" font-family="Segoe UI,sans-serif" font-size="10">JSON REST</text>
+
+        <!-- config -->
+        <rect x="220" y="210" width="148" height="54" rx="8" fill="#334155" stroke="#475569" stroke-width="1"/>
+        <text x="294" y="228" text-anchor="middle" fill="#06B6D4" font-family="monospace" font-size="11">config/server_config</text>
+        <text x="294" y="242" text-anchor="middle" fill="#94A3B8" font-family="Segoe UI,sans-serif" font-size="10">URL del servidor guardada</text>
+        <text x="294" y="256" text-anchor="middle" fill="#94A3B8" font-family="Segoe UI,sans-serif" font-size="10">en server_config.json</text>
+
+        <!-- Flecha UI -> api_client -->
+        <line x1="190" y1="163" x2="218" y2="163" stroke="#475569" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- ─── FLECHA CENTRAL HTTP ─── -->
+        <line x1="370" y1="200" x2="510" y2="200" stroke="#3B82F6" stroke-width="2" marker-end="url(#arr2)" stroke-dasharray="6,3"/>
+        <rect x="398" y="183" width="82" height="22" rx="6" fill="#1a2744"/>
+        <text x="439" y="198" text-anchor="middle" fill="#60a5fa" font-family="Segoe UI,sans-serif" font-size="10" font-weight="600">HTTP / JSON</text>
+
+        <!-- ─── SERVIDOR BOX ─── -->
+        <rect x="510" y="20" width="370" height="380" rx="14" fill="#1E293B" stroke="#22C55E" stroke-width="1.5"/>
+        <rect x="510" y="20" width="370" height="38" rx="14" fill="#16A34A"/>
+        <rect x="510" y="44" width="370" height="14" fill="#16A34A"/>
+        <text x="695" y="45" text-anchor="middle" fill="white" font-family="Segoe UI,sans-serif" font-size="13" font-weight="600">SERVIDOR — Flask (server/app.py)</text>
+
+        <!-- auth -->
+        <rect x="535" y="78" width="152" height="54" rx="8" fill="#334155" stroke="#475569" stroke-width="1"/>
+        <text x="611" y="97" text-anchor="middle" fill="#06B6D4" font-family="monospace" font-size="11">auth/auth.py</text>
+        <text x="611" y="111" text-anchor="middle" fill="#94A3B8" font-family="Segoe UI,sans-serif" font-size="10">Login · Registro</text>
+        <text x="611" y="124" text-anchor="middle" fill="#94A3B8" font-family="Segoe UI,sans-serif" font-size="10">PBKDF2 · 200k iter</text>
+
+        <!-- permissions -->
+        <rect x="700" y="78" width="152" height="54" rx="8" fill="#334155" stroke="#475569" stroke-width="1"/>
+        <text x="776" y="97" text-anchor="middle" fill="#06B6D4" font-family="monospace" font-size="10">auth/permissions.py</text>
+        <text x="776" y="111" text-anchor="middle" fill="#94A3B8" font-family="Segoe UI,sans-serif" font-size="10">Roles y permisos</text>
+        <text x="776" y="124" text-anchor="middle" fill="#94A3B8" font-family="Segoe UI,sans-serif" font-size="10">4 niveles de acceso</text>
+
+        <!-- crypto server -->
+        <rect x="535" y="152" width="152" height="70" rx="8" fill="#334155" stroke="#475569" stroke-width="1"/>
+        <text x="611" y="171" text-anchor="middle" fill="#06B6D4" font-family="monospace" font-size="11">crypto/keys.py</text>
+        <text x="611" y="184" text-anchor="middle" fill="#94A3B8" font-family="Segoe UI,sans-serif" font-size="10">RSA 2048 bits</text>
+        <text x="611" y="198" text-anchor="middle" fill="#06B6D4" font-family="monospace" font-size="11">crypto/certificate.py</text>
+        <text x="611" y="211" text-anchor="middle" fill="#94A3B8" font-family="Segoe UI,sans-serif" font-size="10">Certificados JSON</text>
+
+        <!-- admin_queries -->
+        <rect x="700" y="152" width="152" height="70" rx="8" fill="#334155" stroke="#475569" stroke-width="1"/>
+        <text x="776" y="171" text-anchor="middle" fill="#06B6D4" font-family="monospace" font-size="10">db/admin_queries.py</text>
+        <text x="776" y="184" text-anchor="middle" fill="#94A3B8" font-family="Segoe UI,sans-serif" font-size="10">Aprobar · Revocar</text>
+        <text x="776" y="198" text-anchor="middle" fill="#06B6D4" font-family="monospace" font-size="11">db/logs.py</text>
+        <text x="776" y="211" text-anchor="middle" fill="#94A3B8" font-family="Segoe UI,sans-serif" font-size="10">Auditoría de acciones</text>
+
+        <!-- SQLite -->
+        <rect x="570" y="248" width="250" height="130" rx="10" fill="#0F172A" stroke="#A855F7" stroke-width="1.5"/>
+        <text x="695" y="272" text-anchor="middle" fill="#c084fc" font-family="Segoe UI,sans-serif" font-size="12" font-weight="600">SQLite (db/database.py)</text>
+
+        <rect x="585" y="282" width="96" height="22" rx="5" fill="#1E293B" stroke="#475569"/>
+        <text x="633" y="297" text-anchor="middle" fill="#94A3B8" font-family="monospace" font-size="10">users</text>
+
+        <rect x="695" y="282" width="96" height="22" rx="5" fill="#1E293B" stroke="#475569"/>
+        <text x="743" y="297" text-anchor="middle" fill="#94A3B8" font-family="monospace" font-size="10">user_data</text>
+
+        <rect x="585" y="314" width="96" height="22" rx="5" fill="#1E293B" stroke="#475569"/>
+        <text x="633" y="329" text-anchor="middle" fill="#94A3B8" font-family="monospace" font-size="10">revoked_certs</text>
+
+        <rect x="695" y="314" width="96" height="22" rx="5" fill="#1E293B" stroke="#475569"/>
+        <text x="743" y="329" text-anchor="middle" fill="#94A3B8" font-family="monospace" font-size="10">logs</text>
+
+        <!-- Label SQLite arrow -->
+        <line x1="611" y1="222" x2="640" y2="248" stroke="#475569" stroke-width="1" marker-end="url(#arr)"/>
+        <line x1="776" y1="222" x2="750" y2="248" stroke="#475569" stroke-width="1" marker-end="url(#arr)"/>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 2. CAPAS ══════════════════ -->
+  <section>
+    <h2>Capas del Sistema</h2>
+
+    <!-- Capa 1 -->
+    <div class="layer">
+      <div class="layer-header">
+        <div class="layer-icon" style="background:rgba(59,130,246,.15);">🖥️</div>
+        <div>
+          <h3>Capa 1 — Presentación (Cliente Tkinter)</h3>
+          <p>Interfaz gráfica de escritorio que corre en la PC del usuario final</p>
+        </div>
+      </div>
+      <div class="layer-body">
+        <ul class="file-list">
+          <li><span class="file-name">main.py</span><span class="file-desc">Punto de entrada. Verifica conexión al servidor antes de mostrar la UI.</span></li>
+          <li><span class="file-name">ui/login_window.py</span><span class="file-desc">Pantalla principal: login, registro, firma y verificación de archivos/mensajes.</span></li>
+          <li><span class="file-name">ui/admin_panel.py</span><span class="file-desc">Panel exclusivo para administradores: gestión de usuarios, logs y revocaciones.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Capa 2 -->
+    <div class="layer">
+      <div class="layer-header">
+        <div class="layer-icon" style="background:rgba(6,182,212,.15);">🔌</div>
+        <div>
+          <h3>Capa 2 — Comunicación HTTP</h3>
+          <p>Puente entre el cliente y el servidor REST</p>
+        </div>
+      </div>
+      <div class="layer-body">
+        <ul class="file-list">
+          <li><span class="file-name">client/api_client.py</span><span class="file-desc">Envía peticiones HTTP con token Bearer. Guarda y reutiliza la URL del servidor.</span></li>
+          <li><span class="file-name">config/server_config.py</span><span class="file-desc">Lee y guarda la URL del servidor en <code style="color:var(--accent);font-family:monospace;font-size:.8rem;">server_config.json</code> para persistirla entre sesiones.</span></li>
+          <li><span class="file-name">config/paths.py</span><span class="file-desc">Define rutas de directorios de datos (DB, claves, certificados).</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Capa 3 -->
+    <div class="layer">
+      <div class="layer-header">
+        <div class="layer-icon" style="background:rgba(34,197,94,.15);">⚙️</div>
+        <div>
+          <h3>Capa 3 — API REST (Servidor Flask)</h3>
+          <p>Corre en el servidor; expone endpoints para autenticación, usuarios, claves y logs</p>
+        </div>
+      </div>
+      <div class="layer-body">
+        <ul class="file-list">
+          <li><span class="file-name">server/app.py</span><span class="file-desc">Define todos los endpoints Flask. Maneja sesiones en memoria con tokens hex.</span></li>
+          <li><span class="file-name">auth/auth.py</span><span class="file-desc">Lógica de registro y login. Hasheo PBKDF2-HMAC-SHA256 con salt aleatorio.</span></li>
+          <li><span class="file-name">auth/permissions.py</span><span class="file-desc">Tabla de permisos por rol. Función <code style="color:var(--accent);font-family:monospace;">has_permission(role, perm)</code>.</span></li>
+          <li><span class="file-name">crypto/keys.py</span><span class="file-desc">Genera par de claves RSA 2048 bits por usuario y las guarda en la BD.</span></li>
+          <li><span class="file-name">crypto/certificate.py</span><span class="file-desc">Crea certificado JSON (emisión, expiración 1 año, firma SHA-256) por usuario.</span></li>
+          <li><span class="file-name">crypto/signature.py</span><span class="file-desc">Firma y verifica archivos/mensajes usando la clave privada RSA del usuario.</span></li>
+          <li><span class="file-name">db/admin_queries.py</span><span class="file-desc">Consultas admin: listar, aprobar, revocar y desactivar usuarios.</span></li>
+          <li><span class="file-name">db/logs.py</span><span class="file-desc">Registra cada acción relevante con usuario, descripción y timestamp.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Capa 4 -->
+    <div class="layer">
+      <div class="layer-header">
+        <div class="layer-icon" style="background:rgba(168,85,247,.15);">🗄️</div>
+        <div>
+          <h3>Capa 4 — Persistencia (SQLite)</h3>
+          <p>Base de datos local embebida en el servidor</p>
+        </div>
+      </div>
+      <div class="layer-body">
+        <ul class="file-list">
+          <li><span class="file-name">db/database.py</span><span class="file-desc">Crea las tablas, gestiona la conexión y migra claves de archivos a la BD si existían.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 3. API REST ══════════════════ -->
+  <section>
+    <h2>Endpoints de la API REST</h2>
+    <div class="card" style="padding:0;overflow:hidden;">
+      <table class="api-table">
+        <thead>
+          <tr>
+            <th>Método</th>
+            <th>Ruta</th>
+            <th>Auth</th>
+            <th>Descripción</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td><span class="route">/ping</span></td>
+            <td>—</td>
+            <td>Health check del servidor</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td><span class="route">/setup</span></td>
+            <td>—</td>
+            <td>Crea el admin inicial (solo funciona si no hay usuarios)</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td><span class="route">/auth/login</span></td>
+            <td>—</td>
+            <td>Login → retorna token de sesión y rol</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td><span class="route">/auth/register</span></td>
+            <td>—</td>
+            <td>Registro de nuevo usuario (queda en estado <code style="color:var(--yellow)">pending</code>)</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td><span class="route">/auth/verify-password</span></td>
+            <td>✓</td>
+            <td>Verifica la contraseña de un usuario</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td><span class="route">/users/pending</span></td>
+            <td>✓</td>
+            <td>Lista usuarios en espera de aprobación</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td><span class="route">/users/active</span></td>
+            <td>✓</td>
+            <td>Lista usuarios activos</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td><span class="route">/users/all</span></td>
+            <td>✓</td>
+            <td>Lista todos los usuarios con su estado</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td><span class="route">/users/<span>/&lt;username&gt;</span>/approve</span></td>
+            <td>✓</td>
+            <td>Aprueba un usuario y le asigna un rol</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td><span class="route">/users/<span>&lt;username&gt;</span>/revoke</span></td>
+            <td>✓</td>
+            <td>Revoca la identidad y certificado de un usuario</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td><span class="route">/users/<span>&lt;username&gt;</span>/deactivate</span></td>
+            <td>✓</td>
+            <td>Desactiva la cuenta de un usuario</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td><span class="route">/admin/users</span></td>
+            <td>✓</td>
+            <td>Crea un usuario directamente (sin pasar por pending)</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td><span class="route">/users/<span>&lt;username&gt;</span>/cert</span></td>
+            <td>✓</td>
+            <td>Descarga el certificado JSON del usuario</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td><span class="route">/users/<span>&lt;username&gt;</span>/keys/public</span></td>
+            <td>✓</td>
+            <td>Descarga la clave pública en formato PEM</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td><span class="route">/users/<span>&lt;username&gt;</span>/keys/private</span></td>
+            <td>✓ propio/admin</td>
+            <td>Descarga la clave privada PEM (solo el propio usuario o admin)</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td><span class="route">/certs/revoked</span></td>
+            <td>✓</td>
+            <td>Lista de revocaciones (CRL)</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td><span class="route">/logs</span></td>
+            <td>✓</td>
+            <td>Historial de auditoría de acciones</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 4. BASE DE DATOS ══════════════════ -->
+  <section>
+    <h2>Base de Datos — SQLite</h2>
+    <div class="db-grid">
+
+      <div class="db-table-card">
+        <div class="db-table-header">
+          <div class="dot" style="background:#A855F7;"></div>
+          users
+        </div>
+        <div class="db-field"><span class="field-name">id</span><span class="field-type">INTEGER</span><span class="pk">PK</span><span class="field-note">autoincrement</span></div>
+        <div class="db-field"><span class="field-name">username</span><span class="field-type">TEXT</span><span class="field-note">único</span></div>
+        <div class="db-field"><span class="field-name">password_hash</span><span class="field-type">BLOB</span><span class="field-note">PBKDF2-HMAC-SHA256</span></div>
+        <div class="db-field"><span class="field-name">salt</span><span class="field-type">BLOB</span><span class="field-note">16 bytes aleatorios</span></div>
+        <div class="db-field"><span class="field-name">role</span><span class="field-type">TEXT</span><span class="field-note">admin / coordinador / operativo / externo</span></div>
+        <div class="db-field"><span class="field-name">status</span><span class="field-type">TEXT</span><span class="field-note">active | pending | revoked</span></div>
+      </div>
+
+      <div class="db-table-card">
+        <div class="db-table-header">
+          <div class="dot" style="background:#06B6D4;"></div>
+          user_data
+        </div>
+        <div class="db-field"><span class="field-name">username</span><span class="field-type">TEXT</span><span class="pk">PK</span><span class="field-note">referencia a users</span></div>
+        <div class="db-field"><span class="field-name">private_key</span><span class="field-type">BLOB</span><span class="field-note">RSA 2048 en formato PEM</span></div>
+        <div class="db-field"><span class="field-name">public_key</span><span class="field-type">BLOB</span><span class="field-note">RSA 2048 en formato PEM</span></div>
+        <div class="db-field"><span class="field-name">cert_json</span><span class="field-type">TEXT</span><span class="field-note">Certificado JSON serializado</span></div>
+      </div>
+
+      <div class="db-table-card">
+        <div class="db-table-header">
+          <div class="dot" style="background:#EF4444;"></div>
+          revoked_certs
+        </div>
+        <div class="db-field"><span class="field-name">id</span><span class="field-type">INTEGER</span><span class="pk">PK</span></div>
+        <div class="db-field"><span class="field-name">username</span><span class="field-type">TEXT</span><span class="field-note">usuario revocado</span></div>
+        <div class="db-field"><span class="field-name">reason</span><span class="field-type">TEXT</span><span class="field-note">motivo de la revocación</span></div>
+        <div class="db-field"><span class="field-name">revoked_at</span><span class="field-type">TEXT</span><span class="field-note">timestamp ISO</span></div>
+        <div class="db-field"><span class="field-name">revoked_by</span><span class="field-type">TEXT</span><span class="field-note">admin que realizó la acción</span></div>
+      </div>
+
+      <div class="db-table-card">
+        <div class="db-table-header">
+          <div class="dot" style="background:#EAB308;"></div>
+          logs
+        </div>
+        <div class="db-field"><span class="field-name">id</span><span class="field-type">INTEGER</span><span class="pk">PK</span></div>
+        <div class="db-field"><span class="field-name">user</span><span class="field-type">TEXT</span><span class="field-note">usuario que realizó la acción</span></div>
+        <div class="db-field"><span class="field-name">action</span><span class="field-type">TEXT</span><span class="field-note">LOGIN SUCCESS, REGISTER, REVOKE…</span></div>
+        <div class="db-field"><span class="field-name">timestamp</span><span class="field-type">TEXT</span><span class="field-note">fecha y hora</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════════ 5. ROLES ══════════════════ -->
+  <section>
+    <h2>Roles y Permisos</h2>
+    <div class="roles-wrap">
+      <div class="role-row r-admin">
+        <div class="role-label" style="color:#c084fc;">👑 Admin</div>
+        <div class="role-perms">
+          <span class="perm p-consult">consult</span>
+          <span class="perm p-edit">edit</span>
+          <span class="perm p-authorize">authorize</span>
+          <span class="perm p-templates">templates</span>
+        </div>
+      </div>
+      <div class="role-row r-coordinador">
+        <div class="role-label" style="color:#60a5fa;">🔷 Coordinador</div>
+        <div class="role-perms">
+          <span class="perm p-consult">consult</span>
+          <span class="perm p-edit">edit</span>
+          <span class="perm p-authorize">authorize</span>
+        </div>
+      </div>
+      <div class="role-row r-operativo">
+        <div class="role-label" style="color:#4ade80;">🟢 Operativo</div>
+        <div class="role-perms">
+          <span class="perm p-consult">consult</span>
+          <span class="perm p-edit">edit</span>
+        </div>
+      </div>
+      <div class="role-row r-externo">
+        <div class="role-label" style="color:#facc15;">🔸 Externo</div>
+        <div class="role-perms">
+          <span class="perm p-consult">consult</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;display:flex;gap:12px;flex-wrap:wrap;">
+      <div class="card" style="flex:1;min-width:200px;">
+        <h3 style="margin-bottom:8px;">consult</h3>
+        <p style="font-size:.84rem;color:var(--muted);">Ver información del sistema, usuarios y certificados.</p>
+      </div>
+      <div class="card" style="flex:1;min-width:200px;">
+        <h3 style="margin-bottom:8px;">edit</h3>
+        <p style="font-size:.84rem;color:var(--muted);">Modificar datos y firmar documentos.</p>
+      </div>
+      <div class="card" style="flex:1;min-width:200px;">
+        <h3 style="margin-bottom:8px;">authorize</h3>
+        <p style="font-size:.84rem;color:var(--muted);">Aprobar usuarios y autorizar operaciones.</p>
+      </div>
+      <div class="card" style="flex:1;min-width:200px;">
+        <h3 style="margin-bottom:8px;">templates</h3>
+        <p style="font-size:.84rem;color:var(--muted);">Gestionar plantillas y configuración global.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 6. CICLO DE VIDA ══════════════════ -->
+  <section>
+    <h2>Ciclo de Vida de un Usuario</h2>
+    <div class="lifecycle">
+
+      <div class="lc-col">
+        <div style="height:18px;"></div>
+        <div class="lc-step lc-pending">
+          <div class="lc-circle">📝</div>
+          <h4>Registro</h4>
+          <p>El usuario se registra. Estado: <strong style="color:var(--yellow)">pending</strong></p>
+        </div>
+      </div>
+
+      <div class="lc-col">
+        <div class="lc-label">Admin aprueba</div>
+        <div class="lc-arrow">→</div>
+      </div>
+
+      <div class="lc-col">
+        <div style="height:18px;"></div>
+        <div class="lc-step lc-approved">
+          <div class="lc-circle">✅</div>
+          <h4>Aprobación</h4>
+          <p>Admin asigna rol y activa la cuenta</p>
+        </div>
+      </div>
+
+      <div class="lc-col">
+        <div class="lc-label">Genera claves + cert</div>
+        <div class="lc-arrow">→</div>
+      </div>
+
+      <div class="lc-col">
+        <div style="height:18px;"></div>
+        <div class="lc-step lc-active">
+          <div class="lc-circle">🔑</div>
+          <h4>Activo</h4>
+          <p>Tiene par RSA y certificado. Estado: <strong style="color:var(--green)">active</strong></p>
+        </div>
+      </div>
+
+      <div class="lc-col">
+        <div class="lc-label">Admin revoca</div>
+        <div class="lc-arrow">→</div>
+      </div>
+
+      <div class="lc-col">
+        <div style="height:18px;"></div>
+        <div class="lc-step lc-revoked">
+          <div class="lc-circle">🚫</div>
+          <h4>Revocado</h4>
+          <p>Cert en CRL. Estado: <strong style="color:var(--red)">revoked</strong></p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════════ 7. SEGURIDAD ══════════════════ -->
+  <section>
+    <h2>Mecanismos de Seguridad</h2>
+    <div class="sec-grid">
+
+      <div class="sec-card">
+        <div class="sec-icon">🔐</div>
+        <div>
+          <h4>Contraseñas</h4>
+          <p><code>PBKDF2-HMAC-SHA256</code> con salt aleatorio de 16 bytes y <code>200,000 iteraciones</code>. Nunca se almacena la contraseña en texto plano.</p>
+        </div>
+      </div>
+
+      <div class="sec-card">
+        <div class="sec-icon">🎟️</div>
+        <div>
+          <h4>Sesiones</h4>
+          <p>Token <code>hex de 64 caracteres</code> generado con <code>secrets.token_hex(32)</code> al hacer login. Se almacena en memoria del servidor y se envía como <code>Bearer Token</code> en cada petición.</p>
+        </div>
+      </div>
+
+      <div class="sec-card">
+        <div class="sec-icon">🔑</div>
+        <div>
+          <h4>Criptografía Asimétrica</h4>
+          <p>Cada usuario recibe un par de claves <code>RSA 2048 bits</code> al ser aprobado. La clave privada se guarda en la BD del servidor y puede descargarse solo por el propio usuario o un admin.</p>
+        </div>
+      </div>
+
+      <div class="sec-card">
+        <div class="sec-icon">📜</div>
+        <div>
+          <h4>Certificados de Identidad</h4>
+          <p>Certificado <code>JSON</code> con usuario, fecha de emisión, expiración (1 año) y firma <code>SHA-256</code> del contenido. Puede ser revocado y aparece en la CRL.</p>
+        </div>
+      </div>
+
+      <div class="sec-card">
+        <div class="sec-icon">✍️</div>
+        <div>
+          <h4>Firma Digital</h4>
+          <p>El cliente puede firmar archivos y mensajes localmente con su clave privada RSA. Cualquier usuario puede verificar una firma con la clave pública correspondiente.</p>
+        </div>
+      </div>
+
+      <div class="sec-card">
+        <div class="sec-icon">📋</div>
+        <div>
+          <h4>Auditoría</h4>
+          <p>Cada acción relevante queda registrada en la tabla <code>logs</code>: logins exitosos, fallidos, registros, aprobaciones y revocaciones, con timestamp.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════════ 8. DEPLOY ══════════════════ -->
+  <section>
+    <h2>Despliegue</h2>
+    <div class="deploy-row">
+
+      <div class="deploy-card">
+        <h4>🖥️ Servidor Local</h4>
+        <ul>
+          <li>Ejecutar <code style="color:var(--accent);font-family:monospace;">server/run_server.bat</code> en Windows</li>
+          <li>Corre en <code style="color:var(--accent);font-family:monospace;">http://0.0.0.0:5000</code></li>
+          <li>Accesible desde red local por IP del equipo</li>
+          <li>Puerto configurable con variable de entorno <code style="color:var(--accent);font-family:monospace;">PORT</code></li>
+        </ul>
+      </div>
+
+      <div class="deploy-card">
+        <h4>☁️ Nube (Railway)</h4>
+        <ul>
+          <li>Deploy usando <code style="color:var(--accent);font-family:monospace;">wsgi.py</code> como entrypoint</li>
+          <li>Railway inyecta la variable <code style="color:var(--accent);font-family:monospace;">PORT</code> automáticamente</li>
+          <li>El cliente solo necesita cambiar la URL configurada</li>
+          <li>SQLite persiste en el filesystem del contenedor</li>
+        </ul>
+      </div>
+
+      <div class="deploy-card">
+        <h4>📦 Cliente Distribuible</h4>
+        <ul>
+          <li>Compilar con <code style="color:var(--accent);font-family:monospace;">build.bat</code> usando PyInstaller</li>
+          <li>Genera <code style="color:var(--accent);font-family:monospace;">dist\SistemaIdentidad\SistemaIdentidad.exe</code></li>
+          <li>Distribuir <strong>toda la carpeta</strong>, no solo el .exe</li>
+          <li>No requiere Python instalado en el cliente</li>
+        </ul>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  Sistema de Identidad Digital — Equipo 1 · 601 &nbsp;·&nbsp; Documentación generada automáticamente
+</footer>
+
+</body>
+</html>
