@@ -225,7 +225,7 @@ def setup():
     username = data.get("username", "admin")
     password = data.get("password", "")
     if not password:
-        return jsonify({"error": "Se requiere contrasena"}), 400
+        return jsonify({"error": "Se requiere contraseña"}), 400
     ok = register_user(username, password, role="admin")
     if ok:
         return jsonify({"ok": True, "mensaje": f"Admin '{username}' creado correctamente"})

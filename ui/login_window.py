@@ -147,7 +147,7 @@ def start_app():
         password = entry_pass.get()
         if not user or not password:
             messagebox.showwarning("Campos vacios",
-                                   "Ingresa usuario y contrasena.", parent=root)
+                                   "Ingresa usuario y contraseña.", parent=root)
             return
         success, role = api.login(user, password)
         if success:
@@ -160,7 +160,7 @@ def start_app():
         else:
             messagebox.showerror(
                 "Acceso denegado",
-                "Usuario o contrasena incorrectos,\n"
+                "Usuario o contraseña incorrectos,\n"
                 "o la cuenta esta desactivada.", parent=root)
 
     def register():
@@ -168,7 +168,7 @@ def start_app():
         password = entry_pass.get()
         if not user or not password:
             messagebox.showwarning("Campos vacios",
-                                   "Ingresa usuario y contrasena.", parent=root)
+                                   "Ingresa usuario y contraseña.", parent=root)
             return
         if api.register(user, password):
             messagebox.showinfo(
@@ -274,14 +274,14 @@ def start_app():
 
                 pwd = simpledialog.askstring(
                     "Confirmar identidad",
-                    "Ingresa tu contrasena para descargar las credenciales:",
+                    "Ingresa tu contraseña para descargar las credenciales:",
                     show="*", parent=dash)
                 if not pwd:
                     return
 
                 if not api.verify_password(username, pwd):
                     messagebox.showerror("Contrasena incorrecta",
-                                         "La contrasena ingresada no es valida.", parent=dash)
+                                         "La contraseña ingresada no es valida.", parent=dash)
                     return
 
                 d = _get_dir(username)
@@ -315,7 +315,7 @@ def start_app():
                 messagebox.showinfo(
                     "Descarga completa",
                     f"ZIP cifrado guardado en:\n{zip_path}\n\n"
-                    "Usa tu contrasena de cuenta para abrirlo.", parent=dash)
+                    "Usa tu contraseña de cuenta para abrirlo.", parent=dash)
 
             _btn(sec, "Descargar Certificado y Claves",
                  download_credentials, bg=NEUTRAL, full=True)
