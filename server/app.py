@@ -123,11 +123,13 @@ def deactivate(username):
 
 @app.route("/admin/users", methods=["POST"])
 def admin_create_user():
-    if not _session():
+    sess = _session()
+    if not sess:
         return jsonify({"error": "No autenticado"}), 401
     data = request.json or {}
     ok = register_user(data.get("username", ""), data.get("password", ""),
-                       role=data.get("role", "externo"))
+                       role=data.get("role", "externo"),
+                       signed_by=sess["username"])
     if ok:
         return jsonify({"ok": True})
     return jsonify({"error": "El usuario ya existe"}), 409
@@ -180,6 +182,15 @@ def get_public_key(username):
     return Response(row[0], mimetype="application/x-pem-file")
 
 
+@app.route("/users/<username>/cert/verify", methods=["GET"])
+def verify_cert(username):
+    if not _session():
+        return jsonify({"error": "No autenticado"}), 401
+    from crypto.certificate import verify_certificate
+    valid, message = verify_certificate(username)
+    return jsonify({"valid": valid, "message": message})
+
+
 # ── CRL ───────────────────────────────────────────────────────
 
 @app.route("/certs/revoked", methods=["GET"])
@@ -219,6 +230,36 @@ def setup():
     if ok:
         return jsonify({"ok": True, "mensaje": f"Admin '{username}' creado correctamente"})
     return jsonify({"error": "Error al crear el admin"}), 500
+
+
+# ── Reset temporal (eliminar después de usar) ─────────────────
+
+@app.route("/reset", methods=["POST"])
+def reset():
+    secret = os.environ.get("RESET_SECRET", "")
+    data = request.json or {}
+    if not secret or data.get("secret") != secret:
+        return jsonify({"error": "No autorizado"}), 403
+
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute("DELETE FROM revoked_certs")
+    cur.execute("DELETE FROM user_data")
+    cur.execute("DELETE FROM users")
+    try:
+        cur.execute("DELETE FROM logs")
+    except Exception:
+        pass
+    con.commit()
+    con.close()
+
+    import shutil
+    from config.paths import USERS_DIR
+    if os.path.exists(USERS_DIR):
+        shutil.rmtree(USERS_DIR)
+        os.makedirs(USERS_DIR, exist_ok=True)
+
+    return jsonify({"ok": True, "mensaje": "Base de datos limpiada. Usa /setup para crear el admin."})
 
 
 # ── Health ────────────────────────────────────────────────────
