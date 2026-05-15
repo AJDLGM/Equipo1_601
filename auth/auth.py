@@ -27,7 +27,7 @@ def verify_password(password, salt, stored_hash):
     return new_hash == stored_hash
 
 
-def register_user(username, password, role="user", pending=False):
+def register_user(username, password, role="user", pending=False, signed_by=None):
     con = get_connection()
     cur = con.cursor()
 
@@ -43,7 +43,16 @@ def register_user(username, password, role="user", pending=False):
 
         if not pending:
             generate_keys(username)
-            create_certificate(username)
+
+            signer = signed_by or username
+            con2 = get_connection()
+            cur2 = con2.cursor()
+            cur2.execute("SELECT private_key FROM user_data WHERE username=?", (signer,))
+            row = cur2.fetchone()
+            con2.close()
+            signer_private_key = row[0] if row else None
+
+            create_certificate(username, signed_by=signer, admin_private_key_pem=signer_private_key)
 
         log_action(username, "REGISTER" if not pending else "REGISTER_PENDING")
 
