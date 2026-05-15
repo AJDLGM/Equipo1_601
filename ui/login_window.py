@@ -187,14 +187,19 @@ def start_app():
             return
         status = cert.get("status", "active").upper()
         reason = cert.get("revocation_reason", "—")
+        signed_by = cert.get("signed_by", "—")
+        algorithm = cert.get("signature_algorithm", "SHA256-hash")
+        signature = cert.get("signature", "")
         messagebox.showinfo(
             "Certificado Digital",
             f"Usuario      : {cert['user']}\n"
             f"Emitido      : {cert['issued_at'][:19]}\n"
             f"Expira       : {cert['expires_at'][:19]}\n"
             f"Estado       : {status}\n"
+            f"Firmado por  : {signed_by}\n"
+            f"Algoritmo    : {algorithm}\n"
             f"Motivo rev.  : {reason}\n\n"
-            f"Hash         : {cert['signature'][:40]}...",
+            f"Firma        : {signature[:40]}...",
         )
 
     def open_dashboard(username, role):
