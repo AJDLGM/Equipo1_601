@@ -123,7 +123,15 @@ def approve_user(username, admin_username, role="user"):
     con.close()
 
     generate_keys(username)
-    create_certificate(username)
+
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute("SELECT private_key FROM user_data WHERE username=?", (admin_username,))
+    row = cur.fetchone()
+    con.close()
+    admin_private_key = row[0] if row else None
+
+    create_certificate(username, signed_by=admin_username, admin_private_key_pem=admin_private_key)
 
     from db.logs import log_action
     log_action(admin_username, f"APPROVE_USER:{username}")

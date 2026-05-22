@@ -23,16 +23,25 @@ if errorlevel 1 (
 )
 
 echo [2/3] Compilando la aplicacion...
-python -m PyInstaller main.spec --clean --noconfirm
+python -m PyInstaller SistemaIdentidad.spec --clean --noconfirm
 if errorlevel 1 (
     echo ERROR: Fallo la compilacion.
     pause
     exit /b 1
 )
 
-echo [3/3] Listo!
+echo [3/3] Generando configuracion del servidor...
+echo {"url": "https://equipo1601-production.up.railway.app"} > dist\SistemaIdentidad\server_config.json
+if errorlevel 1 (
+    echo ERROR: Fallo al crear server_config.json.
+    pause
+    exit /b 1
+)
+
+echo Listo!
 echo.
 echo La aplicacion se genero en: dist\SistemaIdentidad\
+echo Servidor preconfigurado: https://equipo1601-production.up.railway.app
 echo Ejecuta:  dist\SistemaIdentidad\SistemaIdentidad.exe
 echo.
 echo Para distribuir la app, comparte TODA la carpeta dist\SistemaIdentidad\

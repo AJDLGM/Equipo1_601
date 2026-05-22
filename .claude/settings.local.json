@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(python -m py_compile main.py create_users.py auth/auth.py auth/mfa.py auth/permissions.py config/paths.py crypto/certificate.py crypto/keys.py crypto/signature.py db/database.py db/logs.py db/admin_queries.py ui/login_window.py ui/admin_panel.py)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\jeam8\\\\OneDrive\\\\Escritorio\\\\Equipo1_601\" -Force)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Bash(Format-Table -AutoSize)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\jeam8\\\\OneDrive\\\\Escritorio\\\\Equipo1_601\\\\server\" -Recurse | Select-Object FullName | ForEach-Object { $_.FullName.Replace\\(\"C:\\\\Users\\\\jeam8\\\\OneDrive\\\\Escritorio\\\\Equipo1_601\\\\\", \"\"\\) })",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\jeam8\\\\OneDrive\\\\Escritorio\\\\Equipo1_601\\\\client\" -Recurse | Select-Object FullName | ForEach-Object { $_.FullName.Replace\\(\"C:\\\\Users\\\\jeam8\\\\OneDrive\\\\Escritorio\\\\Equipo1_601\\\\\", \"\"\\) })",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\jeam8\\\\OneDrive\\\\Escritorio\\\\Equipo1_601\\\\crypto\" -Recurse | Select-Object FullName | ForEach-Object { $_.FullName.Replace\\(\"C:\\\\Users\\\\jeam8\\\\OneDrive\\\\Escritorio\\\\Equipo1_601\\\\\", \"\"\\) })"
     ]
   }
 }

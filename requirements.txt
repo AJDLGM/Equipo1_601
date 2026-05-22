@@ -3,3 +3,6 @@ pyzipper
 flask
 gunicorn
 pyinstaller
+python-docx
+pypdf
+reportlab
