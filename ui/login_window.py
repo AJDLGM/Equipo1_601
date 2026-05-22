@@ -361,14 +361,34 @@ def start_app():
                                     "Mensaje firmado correctamente.", parent=dash)
 
             def sign_file_ui():
-                path = filedialog.askopenfilename(parent=dash)
+                path = filedialog.askopenfilename(
+                    parent=dash,
+                    filetypes=[
+                        ("PDF",  "*.pdf"),
+                        ("Word", "*.docx"),
+                        ("Word 97-2003", "*.doc"),
+                        ("Todos los archivos", "*.*"),
+                    ]
+                )
                 if not path:
                     return
                 if not _check_keys(dash):
                     return
-                sign_file(username, path)
-                messagebox.showinfo("Firmado",
-                                    "Archivo firmado correctamente.", parent=dash)
+                try:
+                    signed_path = sign_file(username, path)
+                    messagebox.showinfo(
+                        "Archivo firmado",
+                        f"Documento firmado correctamente.\n\n"
+                        f"Archivo generado:\n{signed_path}\n\n"
+                        f"La firma queda embebida dentro del propio archivo.",
+                        parent=dash
+                    )
+                except Exception as e:
+                    messagebox.showerror(
+                        "Error al firmar",
+                        f"No se pudo firmar el archivo:\n\n{e}",
+                        parent=dash
+                    )
 
             _btn(row, "Firmar texto",   sign,         bg=PRIMARY).pack(side="left", padx=(0, 6), pady=2)
             _btn(row, "Firmar archivo", sign_file_ui, bg=NEUTRAL).pack(side="left", pady=2)
@@ -406,16 +426,32 @@ def start_app():
                                          "La firma no es valida o fue alterada.", parent=dash)
 
             def verify_file_ui():
-                if not _check_keys(dash):
-                    return
-                path = filedialog.askopenfilename(parent=dash)
+                path = filedialog.askopenfilename(
+                    parent=dash,
+                    filetypes=[
+                        ("PDF firmado",  "*.pdf"),
+                        ("Word firmado", "*.docx *.doc"),
+                        ("Contenedor firmado", "*.signed"),
+                        ("Todos los archivos", "*.*"),
+                    ]
+                )
                 if not path:
                     return
-                if verify_file(username, path):
-                    messagebox.showinfo("Valida", "La firma es valida.", parent=dash)
+                ok, result = verify_file(path)
+                if ok:
+                    signed_at = result["signed_at"][:19].replace("T", " ")
+                    messagebox.showinfo(
+                        "Firma valida",
+                        f"El documento es autentico e integro.\n\n"
+                        f"Firmante     : {result['signer']}\n"
+                        f"Archivo      : {result['original_filename']}\n"
+                        f"Firmado el   : {signed_at}\n"
+                        f"Hash SHA-256 : {result['hash_sha256'][:40]}...\n"
+                        f"Cert. estado : {result['cert_status']}",
+                        parent=dash
+                    )
                 else:
-                    messagebox.showerror("Invalida",
-                                         "La firma no es valida o fue alterada.", parent=dash)
+                    messagebox.showerror("Firma invalida", result, parent=dash)
 
             _btn(row2, "Verificar texto",   verify,          bg=SUCCESS).pack(side="left", padx=(0, 6), pady=2)
             _btn(row2, "Verificar archivo", verify_file_ui,  bg=SUCCESS).pack(side="left", pady=2)
