@@ -357,7 +357,7 @@ def start_app():
                 if not _check_keys(dash):
                     return
                 sign_message(username, msg)
-                api.log_action("SIGN_MESSAGE")
+                api.log_action("Firma de mensaje de texto")
                 messagebox.showinfo("Firmado",
                                     "Mensaje firmado correctamente.", parent=dash)
 
@@ -377,7 +377,7 @@ def start_app():
                     return
                 try:
                     signed_path = sign_file(username, path)
-                    api.log_action(f"SIGN_FILE:{os.path.basename(path)}")
+                    api.log_action(f"Firma de archivo: {os.path.basename(path)}")
                     messagebox.showinfo(
                         "Archivo firmado",
                         f"Documento firmado correctamente.\n\n"
@@ -386,7 +386,7 @@ def start_app():
                         parent=dash
                     )
                 except Exception as e:
-                    api.log_action(f"SIGN_FILE_ERROR:{os.path.basename(path)}")
+                    api.log_action(f"Error al firmar archivo: {os.path.basename(path)}")
                     messagebox.showerror(
                         "Error al firmar",
                         f"No se pudo firmar el archivo:\n\n{e}",
@@ -423,10 +423,10 @@ def start_app():
                 if not sig:
                     return
                 if verify_signature(username, msg, sig):
-                    api.log_action(f"VERIFY_MESSAGE:OK | archivo:{os.path.basename(sig)}")
+                    api.log_action(f"Verificacion de mensaje: firma valida | archivo:{os.path.basename(sig)}")
                     messagebox.showinfo("Valida", "La firma es valida.", parent=dash)
                 else:
-                    api.log_action(f"VERIFY_MESSAGE:INVALID | archivo:{os.path.basename(sig)}")
+                    api.log_action(f"Verificacion de mensaje: firma invalida | archivo:{os.path.basename(sig)}")
                     messagebox.showerror("Invalida",
                                          "La firma no es valida o fue alterada.", parent=dash)
 
@@ -446,7 +446,7 @@ def start_app():
                 if ok:
                     signed_at = result["signed_at"][:19].replace("T", " ")
                     api.log_action(
-                        f"VERIFY_FILE:OK | archivo:{os.path.basename(path)} | firmante:{result['signer']}"
+                        f"Verificacion de archivo: firma valida | archivo:{os.path.basename(path)} | firmante:{result['signer']}"
                     )
                     messagebox.showinfo(
                         "Firma valida",
@@ -459,7 +459,7 @@ def start_app():
                         parent=dash
                     )
                 else:
-                    api.log_action(f"VERIFY_FILE:INVALID | archivo:{os.path.basename(path)}")
+                    api.log_action(f"Verificacion de archivo: firma invalida | archivo:{os.path.basename(path)}")
                     messagebox.showerror("Firma invalida", result, parent=dash)
 
             _btn(row2, "Verificar texto",   verify,          bg=SUCCESS).pack(side="left", padx=(0, 6), pady=2)
