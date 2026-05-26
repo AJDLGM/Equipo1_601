@@ -136,3 +136,6 @@ class APIClient:
         if err:
             return []
         return [(e["user"], e["action"], e["timestamp"]) for e in result]
+
+    def log_action(self, action: str):
+        self._req("POST", "/logs", {"action": action})
