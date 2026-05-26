@@ -12,6 +12,8 @@ from db.admin_queries import (
     get_all_users_with_status, get_active_users,
     revoke_identity, deactivate_user,
     get_revoked_certs, get_pending_users, approve_user, get_logs,
+    create_sign_request, get_pending_sign_requests,
+    get_sign_request_file, complete_sign_request,
 )
 from db.logs import log_action
 from db.database import get_connection, create_tables
@@ -209,6 +211,67 @@ def logs():
         return jsonify({"error": "No autenticado"}), 401
     return jsonify([{"user": u, "action": a, "timestamp": t} for u, a, t in get_logs()])
 
+
+# ── Solicitudes de firma ──────────────────────────────────────
+
+@app.route("/sign-requests", methods=["POST"])
+def submit_sign_request():
+    sess = _session()
+    if not sess:
+        return jsonify({"error": "No autenticado"}), 401
+    data = request.json or {}
+    filename  = data.get("filename", "").strip()
+    file_b64  = data.get("file_data", "")
+    if not filename or not file_b64:
+        return jsonify({"error": "Faltan datos"}), 400
+    import base64
+    try:
+        file_bytes = base64.b64decode(file_b64)
+    except Exception:
+        return jsonify({"error": "Archivo invalido"}), 400
+    create_sign_request(sess["username"], filename, file_bytes)
+    log_action(sess["username"], f"Solicitud de firma enviada: {filename}")
+    return jsonify({"ok": True})
+
+
+@app.route("/sign-requests/pending", methods=["GET"])
+def pending_sign_requests():
+    sess = _session()
+    if not sess or sess["role"] != "admin":
+        return jsonify({"error": "No autorizado"}), 403
+    rows = get_pending_sign_requests()
+    return jsonify([
+        {"id": r[0], "requester": r[1], "filename": r[2], "requested_at": r[3]}
+        for r in rows
+    ])
+
+
+@app.route("/sign-requests/<int:req_id>/file", methods=["GET"])
+def download_sign_request_file(req_id):
+    sess = _session()
+    if not sess or sess["role"] != "admin":
+        return jsonify({"error": "No autorizado"}), 403
+    row = get_sign_request_file(req_id)
+    if not row:
+        return jsonify({"error": "Solicitud no encontrada"}), 404
+    import base64
+    return jsonify({"filename": row[0], "file_data": base64.b64encode(row[1]).decode()})
+
+
+@app.route("/sign-requests/<int:req_id>/complete", methods=["POST"])
+def complete_sign_req(req_id):
+    sess = _session()
+    if not sess or sess["role"] != "admin":
+        return jsonify({"error": "No autorizado"}), 403
+    row = get_sign_request_file(req_id)
+    if not row:
+        return jsonify({"error": "Solicitud no encontrada"}), 404
+    complete_sign_request(req_id, sess["username"])
+    log_action(sess["username"], f"Solicitud de firma completada: {row[0]}")
+    return jsonify({"ok": True})
+
+
+# ── Logs ──────────────────────────────────────────────────────
 
 @app.route("/logs", methods=["POST"])
 def log_client_action():

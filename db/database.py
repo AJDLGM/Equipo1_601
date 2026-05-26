@@ -44,6 +44,19 @@ def create_tables():
     )
     """)
 
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS sign_requests (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        requester    TEXT,
+        filename     TEXT,
+        file_data    BLOB,
+        status       TEXT DEFAULT 'pendiente',
+        requested_at TEXT,
+        signed_at    TEXT,
+        signed_by    TEXT
+    )
+    """)
+
     con.commit()
     _migrate_files_to_db(cur, con)
     con.close()

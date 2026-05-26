@@ -139,3 +139,29 @@ class APIClient:
 
     def log_action(self, action: str):
         self._req("POST", "/logs", {"action": action})
+
+    # ── Solicitudes de firma ──────────────────────────────────
+
+    def submit_sign_request(self, filename: str, file_bytes: bytes):
+        import base64
+        _, err = self._req("POST", "/sign-requests",
+                           {"filename": filename,
+                            "file_data": base64.b64encode(file_bytes).decode()})
+        return err is None
+
+    def get_pending_sign_requests(self):
+        result, err = self._req("GET", "/sign-requests/pending")
+        if err:
+            return []
+        return result
+
+    def download_sign_request_file(self, req_id: int):
+        import base64
+        result, err = self._req("GET", f"/sign-requests/{req_id}/file")
+        if err or not result:
+            return None, None
+        return result["filename"], base64.b64decode(result["file_data"])
+
+    def complete_sign_request(self, req_id: int):
+        _, err = self._req("POST", f"/sign-requests/{req_id}/complete", {})
+        return err is None
