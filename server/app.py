@@ -340,6 +340,21 @@ def download_signed_document(req_id):
     })
 
 
+# ── Log de cliente ────────────────────────────────────────────
+
+@app.route("/logs", methods=["POST"])
+def log_client_action():
+    sess = _session()
+    if not sess:
+        return jsonify({"error": "No autenticado"}), 401
+    data = request.json or {}
+    action = data.get("action", "").strip()
+    if not action:
+        return jsonify({"error": "Accion requerida"}), 400
+    log_action(sess["username"], action)
+    return jsonify({"ok": True})
+
+
 # ── Setup inicial (solo funciona si no hay usuarios) ──────────
 
 @app.route("/setup", methods=["POST"])

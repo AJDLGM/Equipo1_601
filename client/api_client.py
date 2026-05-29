@@ -167,6 +167,9 @@ class APIClient:
             return []
         return [(e["user"], e["action"], e["timestamp"]) for e in result]
 
+    def log_action(self, action: str):
+        self._req("POST", "/logs", {"action": action})
+
     # ── Solicitudes de firma ──────────────────────────────────
 
     def create_signing_request(self, document_name, document_bytes, operativo, notes=""):

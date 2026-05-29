@@ -144,3 +144,48 @@ def get_logs():
     logs = cur.fetchall()
     con.close()
     return logs
+
+
+# ── Solicitudes de firma ──────────────────────────────────────
+
+def create_sign_request(requester, filename, file_data: bytes):
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute(
+        "INSERT INTO sign_requests (requester, filename, file_data, requested_at) VALUES (?, ?, ?, ?)",
+        (requester, filename, file_data, datetime.now().isoformat()),
+    )
+    con.commit()
+    con.close()
+
+
+def get_pending_sign_requests():
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute(
+        "SELECT id, requester, filename, requested_at FROM sign_requests "
+        "WHERE status='pendiente' ORDER BY requested_at ASC"
+    )
+    rows = cur.fetchall()
+    con.close()
+    return rows
+
+
+def get_sign_request_file(request_id):
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute("SELECT filename, file_data FROM sign_requests WHERE id=?", (request_id,))
+    row = cur.fetchone()
+    con.close()
+    return row
+
+
+def complete_sign_request(request_id, signed_by):
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute(
+        "UPDATE sign_requests SET status='firmado', signed_at=?, signed_by=? WHERE id=?",
+        (datetime.now().isoformat(), signed_by, request_id),
+    )
+    con.commit()
+    con.close()
