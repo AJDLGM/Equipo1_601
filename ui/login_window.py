@@ -320,8 +320,62 @@ def start_app():
             _btn(sec, "Descargar Certificado y Claves",
                  download_credentials, bg=NEUTRAL, full=True)
 
-        # EDITAR
-        if has_permission(role, "edit"):
+        # ── Helper de claves (usado por firma y verificacion) ──
+        def _check_keys(parent_win):
+            if not _has_local_keys(username):
+                messagebox.showwarning(
+                    "Credenciales no encontradas",
+                    "Primero descarga tus credenciales usando el boton\n"
+                    "'Descargar Certificado y Claves'.",
+                    parent=parent_win)
+                return False
+            return True
+
+        # ── Solicitar firma (externo y operativo) ─────────────
+        if role in ("externo", "operativo"):
+            sec = _card(content, "Solicitud de Firma de Documento")
+
+            tk.Label(
+                sec,
+                text="Selecciona un documento para solicitar su firma al administrador.",
+                font=(FONT, 9), bg=CARD, fg=SUBTEXT, wraplength=400, justify="left",
+            ).pack(anchor="w", pady=(0, 8))
+
+            def solicitar_firma():
+                path = filedialog.askopenfilename(
+                    parent=dash,
+                    title="Seleccionar documento para firmar",
+                    filetypes=[
+                        ("PDF",  "*.pdf"),
+                        ("Word", "*.docx"),
+                        ("Word 97-2003", "*.doc"),
+                        ("Todos los archivos", "*.*"),
+                    ],
+                )
+                if not path:
+                    return
+                try:
+                    with open(path, "rb") as f:
+                        file_bytes = f.read()
+                except Exception as e:
+                    messagebox.showerror("Error", f"No se pudo leer el archivo:\n{e}", parent=dash)
+                    return
+                fname = os.path.basename(path)
+                ok = api.submit_sign_request(fname, file_bytes)
+                if ok:
+                    api.log_action(f"Solicitud de firma enviada: {fname}")
+                    messagebox.showinfo(
+                        "Solicitud enviada",
+                        f"La solicitud de firma para\n'{fname}'\nfue enviada al administrador.",
+                        parent=dash,
+                    )
+                else:
+                    messagebox.showerror("Error", "No se pudo enviar la solicitud.", parent=dash)
+
+            _btn(sec, "Solicitar firma de documento", solicitar_firma, bg=PRIMARY, full=True)
+
+        # EDITAR — solo coordinador y admin firman archivos directamente
+        if has_permission(role, "edit") and role not in ("externo", "operativo"):
             sec = _card(content, "Firma Digital")
 
             tk.Label(sec, text="Mensaje a firmar:",
@@ -338,16 +392,6 @@ def start_app():
             row = tk.Frame(sec, bg=CARD)
             row.pack(fill="x")
 
-            def _check_keys(parent_win):
-                if not _has_local_keys(username):
-                    messagebox.showwarning(
-                        "Credenciales no encontradas",
-                        "Primero descarga tus credenciales usando el boton\n"
-                        "'Descargar Certificado y Claves'.",
-                        parent=parent_win)
-                    return False
-                return True
-
             def sign():
                 msg = entry_message.get()
                 if not msg:
@@ -357,6 +401,7 @@ def start_app():
                 if not _check_keys(dash):
                     return
                 sign_message(username, msg)
+                api.log_action("Firma de mensaje de texto")
                 messagebox.showinfo("Firmado",
                                     "Mensaje firmado correctamente.", parent=dash)
 
@@ -376,6 +421,7 @@ def start_app():
                     return
                 try:
                     signed_path = sign_file(username, path)
+                    api.log_action(f"Firma de archivo: {os.path.basename(path)}")
                     messagebox.showinfo(
                         "Archivo firmado",
                         f"Documento firmado correctamente.\n\n"
@@ -384,6 +430,7 @@ def start_app():
                         parent=dash
                     )
                 except Exception as e:
+                    api.log_action(f"Error al firmar archivo: {os.path.basename(path)}")
                     messagebox.showerror(
                         "Error al firmar",
                         f"No se pudo firmar el archivo:\n\n{e}",
@@ -392,6 +439,36 @@ def start_app():
 
             _btn(row, "Firmar texto",   sign,         bg=PRIMARY).pack(side="left", padx=(0, 6), pady=2)
             _btn(row, "Firmar archivo", sign_file_ui, bg=NEUTRAL).pack(side="left", pady=2)
+
+        # operativo — puede firmar mensajes de texto
+        elif role == "operativo":
+            sec = _card(content, "Firma de Mensajes")
+
+            tk.Label(sec, text="Mensaje a firmar:",
+                     font=(FONT, 9), bg=CARD, fg=SUBTEXT).pack(anchor="w")
+            msg_wrap2 = tk.Frame(sec, bg=CARD,
+                                 highlightbackground=BORDER, highlightthickness=1)
+            msg_wrap2.pack(fill="x", pady=(2, 10))
+            entry_message2 = tk.Entry(
+                msg_wrap2, relief="flat", font=(FONT, 10),
+                bg=CARD, fg=TEXT, bd=0, highlightthickness=0,
+            )
+            entry_message2.pack(fill="x", padx=10, pady=7)
+
+            def sign2():
+                msg = entry_message2.get()
+                if not msg:
+                    messagebox.showwarning("Campo vacio",
+                                           "Escribe un mensaje primero.", parent=dash)
+                    return
+                if not _check_keys(dash):
+                    return
+                sign_message(username, msg)
+                api.log_action("Firma de mensaje de texto")
+                messagebox.showinfo("Firmado",
+                                    "Mensaje firmado correctamente.", parent=dash)
+
+            _btn(sec, "Firmar texto", sign2, bg=PRIMARY, full=True)
 
         # AUTORIZAR
         if has_permission(role, "authorize"):
@@ -420,8 +497,10 @@ def start_app():
                 if not sig:
                     return
                 if verify_signature(username, msg, sig):
+                    api.log_action(f"Verificacion de mensaje: firma valida | archivo:{os.path.basename(sig)}")
                     messagebox.showinfo("Valida", "La firma es valida.", parent=dash)
                 else:
+                    api.log_action(f"Verificacion de mensaje: firma invalida | archivo:{os.path.basename(sig)}")
                     messagebox.showerror("Invalida",
                                          "La firma no es valida o fue alterada.", parent=dash)
 
@@ -440,6 +519,9 @@ def start_app():
                 ok, result = verify_file(path)
                 if ok:
                     signed_at = result["signed_at"][:19].replace("T", " ")
+                    api.log_action(
+                        f"Verificacion de archivo: firma valida | archivo:{os.path.basename(path)} | firmante:{result['signer']}"
+                    )
                     messagebox.showinfo(
                         "Firma valida",
                         f"El documento es autentico e integro.\n\n"
@@ -451,6 +533,7 @@ def start_app():
                         parent=dash
                     )
                 else:
+                    api.log_action(f"Verificacion de archivo: firma invalida | archivo:{os.path.basename(path)}")
                     messagebox.showerror("Firma invalida", result, parent=dash)
 
             _btn(row2, "Verificar texto",   verify,          bg=SUCCESS).pack(side="left", padx=(0, 6), pady=2)
@@ -546,6 +629,140 @@ def start_app():
             _auto_refresh_pending()
             _btn(sec_pending, "Aprobar cuenta seleccionada", do_approve,
                  bg=SUCCESS, full=True, pady=9)
+
+        # ADMIN — Solicitudes de firma pendientes
+        if role == "admin":
+            sec_sf = _card(content, "Solicitudes de Firma Pendientes")
+
+            def open_sign_requests_panel():
+                panel = tk.Toplevel(dash)
+                panel.title("Solicitudes de Firma")
+                panel.configure(bg=BG)
+                panel.resizable(False, False)
+                _center(panel, 720, 480)
+
+                hdr_p = tk.Frame(panel, bg=HDR_BG, height=52)
+                hdr_p.pack(fill="x")
+                hdr_p.pack_propagate(False)
+                tk.Label(hdr_p, text="  Solicitudes de firma de documentos",
+                         font=(FONT, 11, "bold"), bg=HDR_BG, fg=HDR_FG
+                         ).pack(side="left", padx=12, pady=12)
+
+                main_f = tk.Frame(panel, bg=BG)
+                main_f.pack(fill="both", expand=True, padx=16, pady=12)
+
+                # Encabezado de columnas
+                cols_f = tk.Frame(main_f, bg=DIVIDER)
+                cols_f.pack(fill="x", pady=(0, 2))
+                for txt, w in [("Fecha / Hora", 160), ("Solicitante", 130), ("Archivo", 280)]:
+                    tk.Label(cols_f, text=txt, font=(FONT, 8, "bold"),
+                             bg=DIVIDER, fg=SUBTEXT, width=0, anchor="w",
+                             padx=8, pady=4).pack(side="left")
+
+                # Lista scrollable
+                list_outer = tk.Frame(main_f, bg=CARD,
+                                      highlightbackground=BORDER, highlightthickness=1)
+                list_outer.pack(fill="both", expand=True)
+                sb_sf = tk.Scrollbar(list_outer, orient="vertical")
+                lb_sf = tk.Listbox(
+                    list_outer, height=12,
+                    yscrollcommand=sb_sf.set,
+                    exportselection=False,
+                    relief="flat", bd=0,
+                    font=("Consolas", 9),
+                    bg=CARD, fg=TEXT,
+                    selectbackground=PRIMARY,
+                    selectforeground="white",
+                    activestyle="none",
+                )
+                sb_sf.config(command=lb_sf.yview)
+                sb_sf.pack(side="right", fill="y")
+                lb_sf.pack(side="left", fill="both", expand=True, padx=4, pady=4)
+
+                _requests = []
+
+                def load_requests():
+                    lb_sf.delete(0, tk.END)
+                    _requests.clear()
+                    rows = api.get_pending_sign_requests()
+                    for r in rows:
+                        _requests.append(r)
+                        fecha = r["requested_at"][:19].replace("T", " ")
+                        lb_sf.insert(
+                            tk.END,
+                            f"  {fecha}   {r['requester']:<16}  {r['filename']}"
+                        )
+                    if not rows:
+                        lb_sf.insert(tk.END, "  No hay solicitudes pendientes.")
+
+                load_requests()
+
+                btn_f = tk.Frame(main_f, bg=BG)
+                btn_f.pack(fill="x", pady=(10, 0))
+
+                def firmar_solicitud():
+                    sel = lb_sf.curselection()
+                    if not sel:
+                        messagebox.showwarning("Sin seleccion",
+                                               "Selecciona una solicitud de la lista.", parent=panel)
+                        return
+                    req = _requests[sel[0]]
+                    if not _check_keys(panel):
+                        return
+
+                    fname, file_bytes = api.download_sign_request_file(req["id"])
+                    if not file_bytes:
+                        messagebox.showerror("Error",
+                                             "No se pudo descargar el archivo.", parent=panel)
+                        return
+
+                    # Guardar temporalmente y firmar
+                    import tempfile
+                    ext = os.path.splitext(fname)[1]
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=ext, prefix="solicitud_") as tmp:
+                        tmp.write(file_bytes)
+                        tmp_path = tmp.name
+
+                    try:
+                        signed_path = sign_file(username, tmp_path)
+                    except Exception as e:
+                        os.unlink(tmp_path)
+                        messagebox.showerror("Error al firmar",
+                                             f"No se pudo firmar el archivo:\n{e}", parent=panel)
+                        return
+
+                    os.unlink(tmp_path)
+
+                    # Mover el firmado a la carpeta del usuario
+                    dest_dir = filedialog.askdirectory(
+                        title="Selecciona donde guardar el documento firmado", parent=panel)
+                    if dest_dir:
+                        import shutil
+                        final_name = os.path.splitext(fname)[0] + "_firmado" + ext
+                        final_path = os.path.join(dest_dir, final_name)
+                        shutil.move(signed_path, final_path)
+                    else:
+                        final_path = signed_path
+
+                    api.complete_sign_request(req["id"])
+                    api.log_action(
+                        f"Solicitud de firma completada: {fname} | solicitante: {req['requester']}"
+                    )
+                    messagebox.showinfo(
+                        "Documento firmado",
+                        f"El documento '{fname}' fue firmado correctamente.\n\n"
+                        f"Guardado en:\n{final_path}",
+                        parent=panel,
+                    )
+                    load_requests()
+
+                _btn(btn_f, "Actualizar lista", load_requests, bg=NEUTRAL
+                     ).pack(side="left", padx=(0, 8))
+                _btn(btn_f, "Firmar documento seleccionado", firmar_solicitud, bg=SUCCESS
+                     ).pack(side="left")
+
+            _btn(sec_sf, "Ver solicitudes pendientes de firma",
+                 open_sign_requests_panel, bg=PRIMARY, full=True)
 
         # ADMIN — Logs y panel
         if role == "admin":
