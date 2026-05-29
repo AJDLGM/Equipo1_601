@@ -6,3 +6,4 @@ pyinstaller
 python-docx
 pypdf
 reportlab
+requests

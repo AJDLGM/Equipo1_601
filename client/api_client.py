@@ -1,9 +1,6 @@
 import urllib.request
 import urllib.error
-import urllib.parse
 import json
-import uuid
-import io
 
 _client = None
 
@@ -44,45 +41,29 @@ class APIClient:
             return None, str(e)
 
     def _req_multipart(self, method, path, fields=None, files=None, timeout=120):
-        """Envia una peticion multipart/form-data (para subir archivos)."""
-        boundary = "----Boundary" + uuid.uuid4().hex
-        body = io.BytesIO()
-
-        for name, value in (fields or {}).items():
-            body.write(f"--{boundary}\r\n".encode())
-            body.write(f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode())
-            body.write((value if isinstance(value, bytes) else str(value).encode()))
-            body.write(b"\r\n")
-
-        for name, (filename, data) in (files or {}).items():
-            safe_name = filename.replace('"', '_')
-            body.write(f"--{boundary}\r\n".encode())
-            body.write(
-                f'Content-Disposition: form-data; name="{name}"; filename="{safe_name}"\r\n'
-                .encode()
-            )
-            body.write(b"Content-Type: application/octet-stream\r\n\r\n")
-            body.write(data)
-            body.write(b"\r\n")
-
-        body.write(f"--{boundary}--\r\n".encode())
-        raw_body = body.getvalue()
-
+        """Envia una peticion multipart/form-data usando requests (para archivos)."""
+        import requests as _req_lib
         url = f"{self.base_url}{path}"
-        headers = {
-            "Content-Type": f"multipart/form-data; boundary={boundary}",
-            "Content-Length": str(len(raw_body)),
-        }
+        headers = {}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
-
-        req = urllib.request.Request(url, data=raw_body, headers=headers, method=method)
+        mp_files = {
+            name: (filename, data, "application/octet-stream")
+            for name, (filename, data) in (files or {}).items()
+        }
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                return json.loads(resp.read()), None
-        except urllib.error.HTTPError as e:
+            resp = _req_lib.request(
+                method, url,
+                data=fields or {},
+                files=mp_files or None,
+                headers=headers,
+                timeout=timeout,
+            )
+            resp.raise_for_status()
+            return resp.json(), None
+        except _req_lib.exceptions.HTTPError as e:
             try:
-                err = json.loads(e.read()).get("error", str(e))
+                err = e.response.json().get("error", str(e))
             except Exception:
                 err = str(e)
             return None, err
