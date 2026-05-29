@@ -1,6 +1,9 @@
 import urllib.request
 import urllib.error
+import urllib.parse
 import json
+import uuid
+import io
 
 _client = None
 
@@ -20,7 +23,7 @@ class APIClient:
         self.base_url = base_url.rstrip("/")
         self.token = None
 
-    def _req(self, method, path, body=None, raw=False):
+    def _req(self, method, path, body=None, raw=False, timeout=10):
         url = f"{self.base_url}{path}"
         data = json.dumps(body).encode() if body is not None else None
         headers = {"Content-Type": "application/json"}
@@ -28,9 +31,55 @@ class APIClient:
             headers["Authorization"] = f"Bearer {self.token}"
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
                 content = resp.read()
                 return (content if raw else json.loads(content)), None
+        except urllib.error.HTTPError as e:
+            try:
+                err = json.loads(e.read()).get("error", str(e))
+            except Exception:
+                err = str(e)
+            return None, err
+        except Exception as e:
+            return None, str(e)
+
+    def _req_multipart(self, method, path, fields=None, files=None, timeout=120):
+        """Envia una peticion multipart/form-data (para subir archivos)."""
+        boundary = "----Boundary" + uuid.uuid4().hex
+        body = io.BytesIO()
+
+        for name, value in (fields or {}).items():
+            body.write(f"--{boundary}\r\n".encode())
+            body.write(f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode())
+            body.write((value if isinstance(value, bytes) else str(value).encode()))
+            body.write(b"\r\n")
+
+        for name, (filename, data) in (files or {}).items():
+            safe_name = filename.replace('"', '_')
+            body.write(f"--{boundary}\r\n".encode())
+            body.write(
+                f'Content-Disposition: form-data; name="{name}"; filename="{safe_name}"\r\n'
+                .encode()
+            )
+            body.write(b"Content-Type: application/octet-stream\r\n\r\n")
+            body.write(data)
+            body.write(b"\r\n")
+
+        body.write(f"--{boundary}--\r\n".encode())
+        raw_body = body.getvalue()
+
+        url = f"{self.base_url}{path}"
+        headers = {
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "Content-Length": str(len(raw_body)),
+        }
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+
+        req = urllib.request.Request(url, data=raw_body, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read()), None
         except urllib.error.HTTPError as e:
             try:
                 err = json.loads(e.read()).get("error", str(e))
@@ -136,3 +185,47 @@ class APIClient:
         if err:
             return []
         return [(e["user"], e["action"], e["timestamp"]) for e in result]
+
+    # ── Solicitudes de firma ──────────────────────────────────
+
+    def create_signing_request(self, document_name, document_bytes, operativo, notes=""):
+        result, err = self._req_multipart(
+            "POST", "/signing-requests",
+            fields={"operativo": operativo, "notes": notes or ""},
+            files={"document": (document_name, document_bytes)},
+        )
+        return (err is None), err
+
+    def get_my_signing_requests(self):
+        result, err = self._req("GET", "/signing-requests/mine")
+        return [] if err else result
+
+    def get_incoming_signing_requests(self):
+        result, err = self._req("GET", "/signing-requests/incoming")
+        return [] if err else result
+
+    def download_request_document(self, req_id):
+        import base64
+        result, err = self._req("GET", f"/signing-requests/{req_id}/document")
+        if err:
+            return None, None
+        return result["document_name"], base64.b64decode(result["document_data_b64"])
+
+    def forward_signing_request(self, req_id, coordinador):
+        _, err = self._req("POST", f"/signing-requests/{req_id}/forward",
+                           {"coordinador": coordinador})
+        return err is None
+
+    def complete_signing_request(self, req_id, signed_document_name, signed_document_bytes):
+        _, err = self._req_multipart(
+            "POST", f"/signing-requests/{req_id}/complete",
+            files={"signed_document": (signed_document_name, signed_document_bytes)},
+        )
+        return err is None
+
+    def download_signed_document(self, req_id):
+        import base64
+        result, err = self._req("GET", f"/signing-requests/{req_id}/signed-document")
+        if err:
+            return None, None
+        return result["document_name"], base64.b64decode(result["document_data_b64"])

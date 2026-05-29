@@ -210,6 +210,136 @@ def logs():
     return jsonify([{"user": u, "action": a, "timestamp": t} for u, a, t in get_logs()])
 
 
+# ── Solicitudes de firma ─────────────────────────────────────
+
+@app.route("/signing-requests", methods=["POST"])
+def create_signing_request():
+    sess = _session()
+    if not sess:
+        return jsonify({"error": "No autenticado"}), 401
+    try:
+        doc_file = request.files.get("document")
+        if not doc_file:
+            return jsonify({"error": "No se recibio el documento"}), 400
+        doc_bytes = doc_file.read()
+        doc_name  = doc_file.filename or "documento"
+        operativo = request.form.get("operativo", "")
+        notes     = request.form.get("notes", "")
+        from db.signing_requests import create_signing_request as _create
+        req_id = _create(
+            requester=sess["username"],
+            document_name=doc_name,
+            document_data=doc_bytes,
+            operativo=operativo,
+            notes=notes,
+        )
+        log_action(sess["username"],
+                   f"SIGNING_REQUEST_CREATED:{req_id}|operativo:{operativo}")
+        return jsonify({"ok": True, "id": req_id})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/signing-requests/mine", methods=["GET"])
+def my_signing_requests():
+    sess = _session()
+    if not sess:
+        return jsonify({"error": "No autenticado"}), 401
+    from db.signing_requests import get_requests_by_requester
+    rows = get_requests_by_requester(sess["username"])
+    return jsonify([{
+        "id": r[0], "document_name": r[1], "operativo": r[2],
+        "coordinador": r[3], "status": r[4], "notes": r[5], "created_at": r[6],
+    } for r in rows])
+
+
+@app.route("/signing-requests/incoming", methods=["GET"])
+def incoming_signing_requests():
+    sess = _session()
+    if not sess:
+        return jsonify({"error": "No autenticado"}), 401
+    from db.signing_requests import get_requests_for_operativo, get_requests_for_coordinador
+    role = sess["role"]
+    username = sess["username"]
+    if role == "operativo":
+        rows = get_requests_for_operativo(username)
+        return jsonify([{
+            "id": r[0], "requester": r[1], "document_name": r[2],
+            "status": r[3], "notes": r[4], "created_at": r[5],
+        } for r in rows])
+    if role in ("coordinador", "admin"):
+        rows = get_requests_for_coordinador(username)
+        return jsonify([{
+            "id": r[0], "requester": r[1], "document_name": r[2],
+            "status": r[3], "notes": r[4], "created_at": r[5], "operativo": r[6],
+        } for r in rows])
+    return jsonify([])
+
+
+@app.route("/signing-requests/<int:req_id>/document", methods=["GET"])
+def download_signing_document(req_id):
+    import base64
+    sess = _session()
+    if not sess:
+        return jsonify({"error": "No autenticado"}), 401
+    from db.signing_requests import get_request_document
+    row = get_request_document(req_id)
+    if not row or not row[1]:
+        return jsonify({"error": "Documento no encontrado"}), 404
+    return jsonify({
+        "document_name": row[0],
+        "document_data_b64": base64.b64encode(row[1]).decode(),
+    })
+
+
+@app.route("/signing-requests/<int:req_id>/forward", methods=["POST"])
+def forward_signing_request(req_id):
+    sess = _session()
+    if not sess:
+        return jsonify({"error": "No autenticado"}), 401
+    data = request.json or {}
+    from db.signing_requests import forward_to_coordinador
+    forward_to_coordinador(req_id, data.get("coordinador", ""))
+    log_action(sess["username"],
+               f"SIGNING_FORWARD:{req_id}|coordinador:{data.get('coordinador','')}")
+    return jsonify({"ok": True})
+
+
+@app.route("/signing-requests/<int:req_id>/complete", methods=["POST"])
+def complete_signing_request(req_id):
+    sess = _session()
+    if not sess:
+        return jsonify({"error": "No autenticado"}), 401
+    try:
+        signed_file = request.files.get("signed_document")
+        if not signed_file:
+            return jsonify({"error": "No se recibio el documento firmado"}), 400
+        signed_bytes = signed_file.read()
+        signed_name  = signed_file.filename or "documento_firmado"
+        from db.signing_requests import complete_signing_request as _complete
+        _complete(req_id, signed_name, signed_bytes)
+        log_action(sess["username"], f"SIGNING_COMPLETE:{req_id}")
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/signing-requests/<int:req_id>/signed-document", methods=["GET"])
+def download_signed_document(req_id):
+    import base64
+    sess = _session()
+    if not sess:
+        return jsonify({"error": "No autenticado"}), 401
+    from db.signing_requests import get_request_signed_document
+    row = get_request_signed_document(req_id)
+    if not row or not row[1]:
+        return jsonify({"error": "Documento firmado no disponible"}), 404
+    return jsonify({
+        "document_name": row[0],
+        "document_data_b64": base64.b64encode(row[1]).decode(),
+    })
+
+
 # ── Setup inicial (solo funciona si no hay usuarios) ──────────
 
 @app.route("/setup", methods=["POST"])

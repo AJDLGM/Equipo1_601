@@ -320,6 +320,155 @@ def start_app():
             _btn(sec, "Descargar Certificado y Claves",
                  download_credentials, bg=NEUTRAL, full=True)
 
+        # SOLICITAR FIRMA — solo externo
+        if role == "externo":
+            sec_req = _card(content, "Solicitar Firma de Documento")
+
+            _sel_file = [None]
+
+            tk.Label(sec_req, text="Documento:",
+                     font=(FONT, 9), bg=CARD, fg=SUBTEXT).pack(anchor="w")
+            _file_frame = tk.Frame(sec_req, bg=CARD,
+                                   highlightbackground=BORDER, highlightthickness=1)
+            _file_frame.pack(fill="x", pady=(2, 8))
+            _file_lbl = tk.Label(_file_frame, text="Ningun archivo seleccionado",
+                                 font=(FONT, 9), bg=CARD, fg=SUBTEXT)
+            _file_lbl.pack(side="left", padx=10, pady=6, fill="x", expand=True)
+
+            def _pick_file():
+                path = filedialog.askopenfilename(
+                    parent=dash,
+                    filetypes=[("PDF", "*.pdf"), ("Word", "*.docx"), ("Todos", "*.*")])
+                if path:
+                    _sel_file[0] = path
+                    _file_lbl.config(text=os.path.basename(path), fg=TEXT)
+
+            _btn(sec_req, "Seleccionar archivo", _pick_file, bg=NEUTRAL, full=True)
+
+            tk.Label(sec_req, text="Enviar a operativo:",
+                     font=(FONT, 9), bg=CARD, fg=SUBTEXT).pack(anchor="w", pady=(10, 2))
+            _op_var = tk.StringVar()
+            _op_cb = ttk.Combobox(sec_req, textvariable=_op_var,
+                                  state="readonly", font=(FONT, 10))
+            _op_cb.pack(fill="x", pady=(0, 10))
+
+            def _load_ops():
+                ops = [u for u, r in api.get_active_users() if r == "operativo"]
+                _op_cb["values"] = ops
+                if ops:
+                    _op_var.set(ops[0])
+
+            _load_ops()
+
+            _entry_notes = _field(sec_req, "Notas (opcional)")
+
+            def _send_req():
+                if not _sel_file[0]:
+                    messagebox.showwarning("Sin archivo",
+                                           "Selecciona un documento.", parent=dash)
+                    return
+                op = _op_var.get()
+                if not op:
+                    messagebox.showwarning("Sin operativo",
+                                           "No hay operativos disponibles.", parent=dash)
+                    return
+                try:
+                    with open(_sel_file[0], "rb") as f:
+                        doc_bytes = f.read()
+                    doc_name = os.path.basename(_sel_file[0])
+                    notes = _entry_notes.get().strip()
+                    ok, err = api.create_signing_request(doc_name, doc_bytes, op, notes)
+                    if ok:
+                        messagebox.showinfo(
+                            "Solicitud enviada",
+                            f"Documento enviado a '{op}' para revision.", parent=dash)
+                        _sel_file[0] = None
+                        _file_lbl.config(text="Ningun archivo seleccionado", fg=SUBTEXT)
+                        _entry_notes.delete(0, tk.END)
+                        _refresh_my()
+                    else:
+                        messagebox.showerror("Error al enviar",
+                                             f"No se pudo enviar la solicitud:\n{err}",
+                                             parent=dash)
+                except Exception as e:
+                    messagebox.showerror("Error", str(e), parent=dash)
+
+            _btn(sec_req, "Enviar solicitud de firma", _send_req, bg=PRIMARY, full=True)
+
+            # Mis solicitudes
+            sec_my = _card(content, "Mis Solicitudes de Firma")
+
+            _ST = {
+                "pending_operativo":   "Pendiente (operativo)",
+                "pending_coordinador": "En proceso (coordinador)",
+                "completed":           "Completado",
+            }
+
+            _my_frame = tk.Frame(sec_my, bg=CARD,
+                                 highlightbackground=BORDER, highlightthickness=1)
+            _my_frame.pack(fill="x", pady=(2, 8))
+            _sb_my = tk.Scrollbar(_my_frame, orient="vertical")
+            _my_lb = tk.Listbox(
+                _my_frame, height=4,
+                yscrollcommand=_sb_my.set,
+                exportselection=False, relief="flat", bd=0,
+                font=("Consolas", 9),
+                bg=CARD, fg=TEXT,
+                selectbackground=PRIMARY, selectforeground="white",
+                activestyle="none",
+            )
+            _sb_my.config(command=_my_lb.yview)
+            _sb_my.pack(side="right", fill="y")
+            _my_lb.pack(side="left", fill="x", expand=True, padx=4, pady=4)
+
+            _my_store = [None]
+
+            def _refresh_my():
+                _my_lb.delete(0, tk.END)
+                reqs = api.get_my_signing_requests()
+                _my_store[0] = reqs
+                for r in reqs:
+                    st   = _ST.get(r["status"], r["status"])
+                    date = r["created_at"][:10]
+                    _my_lb.insert(
+                        tk.END,
+                        f"  {r['document_name'][:28]:<30} {st:<28} {date}")
+
+            def _dl_signed():
+                sel = _my_lb.curselection()
+                if not sel:
+                    messagebox.showwarning("Sin seleccion",
+                                           "Selecciona una solicitud.", parent=dash)
+                    return
+                req = _my_store[0][sel[0]]
+                if req["status"] != "completed":
+                    messagebox.showinfo("No disponible",
+                                        "El documento aun no ha sido firmado.", parent=dash)
+                    return
+                name, data = api.download_signed_document(req["id"])
+                if not data:
+                    messagebox.showerror("Error",
+                                         "No se pudo descargar el documento.", parent=dash)
+                    return
+                dest = filedialog.askdirectory(
+                    title="Selecciona carpeta de destino", parent=dash)
+                if not dest:
+                    return
+                save_path = os.path.join(dest, name)
+                with open(save_path, "wb") as f:
+                    f.write(data)
+                messagebox.showinfo("Descargado",
+                                    f"Documento firmado guardado en:\n{save_path}", parent=dash)
+
+            _refresh_my()
+
+            _row_my = tk.Frame(sec_my, bg=CARD)
+            _row_my.pack(fill="x")
+            _btn(_row_my, "Actualizar", _refresh_my, bg=NEUTRAL
+                 ).pack(side="left", padx=(0, 6), pady=2)
+            _btn(_row_my, "Descargar firmado", _dl_signed, bg=SUCCESS
+                 ).pack(side="left", pady=2)
+
         # EDITAR
         if has_permission(role, "edit"):
             sec = _card(content, "Firma Digital")
@@ -393,6 +542,97 @@ def start_app():
             _btn(row, "Firmar texto",   sign,         bg=PRIMARY).pack(side="left", padx=(0, 6), pady=2)
             _btn(row, "Firmar archivo", sign_file_ui, bg=NEUTRAL).pack(side="left", pady=2)
 
+        # SOLICITUDES RECIBIDAS — operativo
+        if role == "operativo":
+            sec_op = _card(content, "Solicitudes de Firma Recibidas")
+
+            _op_frame = tk.Frame(sec_op, bg=CARD,
+                                 highlightbackground=BORDER, highlightthickness=1)
+            _op_frame.pack(fill="x", pady=(2, 8))
+            _sb_op = tk.Scrollbar(_op_frame, orient="vertical")
+            _op_lb = tk.Listbox(
+                _op_frame, height=5,
+                yscrollcommand=_sb_op.set,
+                exportselection=False, relief="flat", bd=0,
+                font=("Consolas", 9),
+                bg=CARD, fg=TEXT,
+                selectbackground=PRIMARY, selectforeground="white",
+                activestyle="none",
+            )
+            _sb_op.config(command=_op_lb.yview)
+            _sb_op.pack(side="right", fill="y")
+            _op_lb.pack(side="left", fill="x", expand=True, padx=4, pady=4)
+
+            _op_store = [None]
+
+            def _refresh_op():
+                _op_lb.delete(0, tk.END)
+                reqs = api.get_incoming_signing_requests()
+                _op_store[0] = reqs
+                for r in reqs:
+                    date = r["created_at"][:10]
+                    _op_lb.insert(
+                        tk.END,
+                        f"  {r['requester']:<18} {r['document_name'][:26]:<28} {date}")
+
+            def _forward():
+                sel = _op_lb.curselection()
+                if not sel:
+                    messagebox.showwarning("Sin seleccion",
+                                           "Selecciona una solicitud.", parent=dash)
+                    return
+                req = _op_store[0][sel[0]]
+                coords = [u for u, r in api.get_active_users() if r == "coordinador"]
+                if not coords:
+                    messagebox.showerror("Sin coordinadores",
+                                         "No hay coordinadores activos.", parent=dash)
+                    return
+
+                fwd = tk.Toplevel(dash)
+                fwd.title("Canalizar a Coordinador")
+                fwd.configure(bg=CARD)
+                fwd.resizable(False, False)
+                _sw, _sh = dash.winfo_screenwidth(), dash.winfo_screenheight()
+                fwd.geometry(f"340x200+{(_sw-340)//2}+{(_sh-200)//2}")
+                fwd.grab_set()
+
+                tk.Label(fwd,
+                         text=f"Documento : {req['document_name']}\n"
+                              f"Remitente : {req['requester']}\n\n"
+                              f"Selecciona el coordinador:",
+                         font=(FONT, 9), bg=CARD, fg=TEXT
+                         ).pack(pady=(16, 6), padx=20, anchor="w")
+
+                _cv = tk.StringVar(value=coords[0])
+                ttk.Combobox(fwd, textvariable=_cv, values=coords,
+                             state="readonly", font=(FONT, 10)
+                             ).pack(fill="x", padx=20, pady=(0, 14))
+
+                def _confirm():
+                    coord = _cv.get()
+                    fwd.destroy()
+                    if api.forward_signing_request(req["id"], coord):
+                        messagebox.showinfo(
+                            "Canalizando",
+                            f"Solicitud enviada al coordinador '{coord}'.", parent=dash)
+                        _refresh_op()
+                    else:
+                        messagebox.showerror("Error",
+                                             "No se pudo canalizar la solicitud.", parent=dash)
+
+                _btn(fwd, "Canalizar", _confirm, bg=PRIMARY, pady=8
+                     ).pack(fill="x", padx=20)
+                fwd.wait_window()
+
+            _refresh_op()
+
+            _row_op = tk.Frame(sec_op, bg=CARD)
+            _row_op.pack(fill="x")
+            _btn(_row_op, "Actualizar", _refresh_op, bg=NEUTRAL
+                 ).pack(side="left", padx=(0, 6), pady=2)
+            _btn(_row_op, "Canalizar a coordinador", _forward, bg=PRIMARY
+                 ).pack(side="left", pady=2)
+
         # AUTORIZAR
         if has_permission(role, "authorize"):
             sec = _card(content, "Verificacion de Firmas")
@@ -455,6 +695,92 @@ def start_app():
 
             _btn(row2, "Verificar texto",   verify,          bg=SUCCESS).pack(side="left", padx=(0, 6), pady=2)
             _btn(row2, "Verificar archivo", verify_file_ui,  bg=SUCCESS).pack(side="left", pady=2)
+
+        # DOCUMENTOS PENDIENTES DE FIRMA — coordinador
+        if role == "coordinador":
+            sec_cd = _card(content, "Documentos Pendientes de Firma")
+
+            _cd_frame = tk.Frame(sec_cd, bg=CARD,
+                                 highlightbackground=BORDER, highlightthickness=1)
+            _cd_frame.pack(fill="x", pady=(2, 8))
+            _sb_cd = tk.Scrollbar(_cd_frame, orient="vertical")
+            _cd_lb = tk.Listbox(
+                _cd_frame, height=5,
+                yscrollcommand=_sb_cd.set,
+                exportselection=False, relief="flat", bd=0,
+                font=("Consolas", 9),
+                bg=CARD, fg=TEXT,
+                selectbackground=PRIMARY, selectforeground="white",
+                activestyle="none",
+            )
+            _sb_cd.config(command=_cd_lb.yview)
+            _sb_cd.pack(side="right", fill="y")
+            _cd_lb.pack(side="left", fill="x", expand=True, padx=4, pady=4)
+
+            _cd_store = [None]
+
+            def _refresh_cd():
+                _cd_lb.delete(0, tk.END)
+                reqs = api.get_incoming_signing_requests()
+                _cd_store[0] = reqs
+                for r in reqs:
+                    date = r["created_at"][:16].replace("T", " ")
+                    _cd_lb.insert(
+                        tk.END,
+                        f"  {r['requester']:<16} {r['document_name'][:24]:<26} {date}")
+
+            def _sign_doc():
+                sel = _cd_lb.curselection()
+                if not sel:
+                    messagebox.showwarning("Sin seleccion",
+                                           "Selecciona un documento.", parent=dash)
+                    return
+                req = _cd_store[0][sel[0]]
+
+                if not _check_keys(dash):
+                    return
+
+                doc_name, doc_bytes = api.download_request_document(req["id"])
+                if not doc_bytes:
+                    messagebox.showerror("Error",
+                                         "No se pudo descargar el documento.", parent=dash)
+                    return
+
+                import tempfile
+                import shutil as _shutil
+                tmp = tempfile.mkdtemp()
+                tmp_path = os.path.join(tmp, doc_name)
+                try:
+                    with open(tmp_path, "wb") as f:
+                        f.write(doc_bytes)
+                    signed_path = sign_file(username, tmp_path)
+                    with open(signed_path, "rb") as f:
+                        signed_bytes = f.read()
+                    signed_name = os.path.basename(signed_path)
+
+                    if api.complete_signing_request(req["id"], signed_name, signed_bytes):
+                        messagebox.showinfo(
+                            "Firmado",
+                            f"Documento '{doc_name}' firmado.\n"
+                            f"El solicitante puede descargarlo.", parent=dash)
+                        _refresh_cd()
+                    else:
+                        messagebox.showerror("Error",
+                                             "No se pudo guardar el documento firmado.",
+                                             parent=dash)
+                except Exception as e:
+                    messagebox.showerror("Error al firmar", str(e), parent=dash)
+                finally:
+                    _shutil.rmtree(tmp, ignore_errors=True)
+
+            _refresh_cd()
+
+            _row_cd = tk.Frame(sec_cd, bg=CARD)
+            _row_cd.pack(fill="x")
+            _btn(_row_cd, "Actualizar", _refresh_cd, bg=NEUTRAL
+                 ).pack(side="left", padx=(0, 6), pady=2)
+            _btn(_row_cd, "Firmar documento seleccionado", _sign_doc, bg=SUCCESS
+                 ).pack(side="left", pady=2)
 
         # ADMIN — Solicitudes pendientes
         if role == "admin":

@@ -44,6 +44,23 @@ def create_tables():
     )
     """)
 
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS signing_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        requester TEXT NOT NULL,
+        document_name TEXT NOT NULL,
+        document_data BLOB NOT NULL,
+        operativo TEXT,
+        coordinador TEXT,
+        status TEXT DEFAULT 'pending_operativo',
+        notes TEXT DEFAULT '',
+        signed_document_name TEXT,
+        signed_document_data BLOB,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """)
+
     con.commit()
     _migrate_files_to_db(cur, con)
     con.close()
