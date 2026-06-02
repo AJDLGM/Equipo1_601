@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import zipfile
 import hashlib
@@ -131,65 +132,65 @@ def _docx_content_hash(doc_path) -> str:
     return h.hexdigest()
 
 
-def _sign_docx(username, file_path, private_key, certificate):
-    from docx import Document
+def _append_docx_sig_block(doc, sig_meta, certificate):
+    """Añade un bloque de firma a un objeto Document ya abierto."""
     from docx.shared import Pt, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-    # Paso 1: hash del contenido original (antes de añadir la firma)
-    file_hash = _docx_content_hash(file_path)
+    signed_at = sig_meta["signed_at"][:19].replace("T", " ")
+    username  = sig_meta.get("signer", "")
+    order     = sig_meta.get("order")
+    is_route  = sig_meta.get("route_signature", False)
 
-    # Paso 2: firmar el hash
-    raw_sig  = _rsa_sign(private_key, file_hash.encode())
-    sig_meta = _build_sig_meta(username, file_path, file_hash, raw_sig, certificate)
-
-    # Paso 3: copiar el documento y añadir la sección de firma visible
-    base_, _ = os.path.splitext(file_path)
-    signed_path = base_ + "_firmado.docx"
-    shutil.copy2(file_path, signed_path)
-
-    doc = Document(signed_path)
-
-    # Párrafo invisible (1 pt, blanco) que sirve de marcador de límite
-    p    = doc.add_paragraph()
-    run  = p.add_run(_DOCX_SIG_MARK)
+    p   = doc.add_paragraph()
+    run = p.add_run(_DOCX_SIG_MARK)
     run.font.size      = Pt(1)
     run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
 
-    # Línea separadora visible
     sep = doc.add_paragraph("_" * 72)
     sep.paragraph_format.space_before = Pt(0)
     sep.paragraph_format.space_after  = Pt(6)
 
-    # Título centrado
-    p    = doc.add_paragraph()
-    run  = p.add_run("FIRMA DIGITAL")
-    run.bold       = True
-    run.font.size  = Pt(14)
-    p.alignment    = WD_ALIGN_PARAGRAPH.CENTER
+    title = f"FIRMA DIGITAL #{order}" if (is_route and order) else "FIRMA DIGITAL"
+    p   = doc.add_paragraph()
+    run = p.add_run(title)
+    run.bold      = True
+    run.font.size = Pt(14)
+    p.alignment   = WD_ALIGN_PARAGRAPH.CENTER
 
-    # Campos de información
-    signed_at = sig_meta["signed_at"][:19].replace("T", " ")
     fields = [
         ("Firmante",           username),
         ("Algoritmo",          "RSA-PSS-SHA256"),
         ("Fecha de firma",     signed_at),
         ("Estado cert.",       certificate.get("status", "active").upper()),
         ("Cert. válido hasta", certificate.get("expires_at", "")[:19]),
-        ("Hash SHA-256",       file_hash[:48] + "..."),
+        ("Hash SHA-256",       sig_meta.get("hash_sha256", "")[:48] + "..."),
     ]
     for label, value in fields:
         p     = doc.add_paragraph()
         r_lbl = p.add_run(f"{label}: ")
         r_lbl.bold = True
-        p.add_run(value)
+        p.add_run(str(value))
 
-    # Datos de verificación en texto pequeño y gris (visibles pero no intrusivos)
-    p    = doc.add_paragraph()
-    run  = p.add_run(f"{_DOCX_JSON_MARK}{_to_b64_json(sig_meta)}")
+    p   = doc.add_paragraph()
+    run = p.add_run(f"{_DOCX_JSON_MARK}{_to_b64_json(sig_meta)}")
     run.font.size      = Pt(5)
     run.font.color.rgb = RGBColor(0xCC, 0xCC, 0xCC)
 
+
+def _sign_docx(username, file_path, private_key, certificate):
+    from docx import Document
+
+    file_hash = _docx_content_hash(file_path)
+    raw_sig   = _rsa_sign(private_key, file_hash.encode())
+    sig_meta  = _build_sig_meta(username, file_path, file_hash, raw_sig, certificate)
+
+    base_, _ = os.path.splitext(file_path)
+    signed_path = base_ + "_firmado.docx"
+    shutil.copy2(file_path, signed_path)
+
+    doc = Document(signed_path)
+    _append_docx_sig_block(doc, sig_meta, certificate)
     doc.save(signed_path)
     return signed_path
 
@@ -199,42 +200,87 @@ def _verify_docx(file_path):
 
     doc = Document(file_path)
 
-    json_para_text = None
+    # Recoger TODAS las firmas embebidas (orden de aparición = orden de firma)
+    all_sigs = []
     for para in doc.paragraphs:
         if para.text.startswith(_DOCX_JSON_MARK):
-            json_para_text = para.text
-            break
+            try:
+                meta = json.loads(
+                    base64.b64decode(para.text[len(_DOCX_JSON_MARK):]).decode("utf-8")
+                )
+                all_sigs.append(meta)
+            except Exception:
+                pass
 
-    if not json_para_text:
+    if not all_sigs:
         return False, "El documento no contiene firma digital embebida."
 
-    try:
-        b64_data = json_para_text[len(_DOCX_JSON_MARK):]
-        sig_meta = json.loads(base64.b64decode(b64_data).decode("utf-8"))
-    except Exception:
-        return False, "No se pudo decodificar la firma del documento."
+    all_sigs.sort(key=lambda s: s.get("order", 1))
+    original_hash = _docx_content_hash(file_path)
 
-    # Recalcular hash del contenido (excluye la sección de firma)
-    computed_hash = _docx_content_hash(file_path)
-    stored_hash   = sig_meta.get("hash_sha256", "")
-    if computed_hash != stored_hash:
-        return False, (
-            "El contenido del documento fue modificado despues de ser firmado.\n"
-            "Los hashes no coinciden."
-        )
+    # ── Firma simple (formato original) ──────────────────────
+    if len(all_sigs) == 1 and not all_sigs[0].get("route_signature"):
+        sig_meta    = all_sigs[0]
+        stored_hash = sig_meta.get("hash_sha256", "")
+        if original_hash != stored_hash:
+            return False, (
+                "El contenido del documento fue modificado después de ser firmado.\n"
+                "Los hashes no coinciden."
+            )
+        try:
+            pub_key = _public_key_from_cert(sig_meta.get("certificate", {}))
+            raw_sig = base64.b64decode(sig_meta["signature"])
+            _rsa_verify(pub_key, raw_sig, stored_hash.encode())
+        except ValueError as e:
+            return False, str(e)
+        except Exception:
+            return False, "La firma digital no es válida."
+        return True, _info_from_meta(sig_meta)
 
-    # Verificar firma RSA con la clave pública del certificado embebido
-    try:
-        certificate = sig_meta.get("certificate", {})
-        public_key  = _public_key_from_cert(certificate)
-        raw_sig     = base64.b64decode(sig_meta["signature"])
-        _rsa_verify(public_key, raw_sig, stored_hash.encode())
-    except ValueError as e:
-        return False, str(e)
-    except Exception:
-        return False, "La firma digital no es valida."
+    # ── Ruta multi-firma ─────────────────────────────────────
+    for i, sig in enumerate(all_sigs):
+        # hash_chain esperado para este paso
+        if i == 0:
+            expected_hash = original_hash          # primer firmante: igual al hash del contenido
+        else:
+            chain_input = original_hash.encode()
+            for prev in all_sigs[:i]:
+                chain_input += base64.b64decode(prev["signature"])
+            expected_hash = hashlib.sha256(chain_input).hexdigest()
 
-    return True, _info_from_meta(sig_meta)
+        stored_hash = sig.get("hash_chain", sig.get("hash_sha256", ""))
+        if stored_hash != expected_hash:
+            return False, (
+                f"La firma #{sig.get('order', i+1)} ({sig.get('signer','?')}) no es válida.\n"
+                "El hash de cadena no coincide: orden alterado o firma faltante."
+            )
+        try:
+            pub_key = _public_key_from_cert(sig.get("certificate", {}))
+            raw_sig = base64.b64decode(sig["signature"])
+            _rsa_verify(pub_key, raw_sig, expected_hash.encode())
+        except ValueError as e:
+            return False, str(e)
+        except Exception:
+            return False, (
+                f"La firma #{sig.get('order', i+1)} ({sig.get('signer','?')}) "
+                "no es válida criptográficamente."
+            )
+
+    last        = all_sigs[-1]
+    all_signers = " → ".join(
+        f"{s.get('signer','?')} (#{s.get('order', i+1)})"
+        for i, s in enumerate(all_sigs)
+    )
+    return True, {
+        "signer":            last.get("signer", ""),
+        "original_filename": last.get("original_filename", os.path.basename(file_path)),
+        "signed_at":         last.get("signed_at", ""),
+        "hash_sha256":       original_hash,
+        "cert_status":       last.get("certificate", {}).get("status", "unknown"),
+        "route":             [],
+        "all_signers":       all_signers,
+        "total_signatures":  len(all_sigs),
+    }
 
 
 # ── PDF ───────────────────────────────────────────────────────────────────────
@@ -452,18 +498,89 @@ def sign_for_route(username, file_path):
     """
     Firma un documento dentro de una ruta multi-firma.
 
-    - Si `file_path` ya es un .msigned: añade la firma al final de la cadena.
-    - Si es un archivo normal: crea un nuevo contenedor .msigned con la primera firma.
-
-    La firma de cadena se calcula como:
-      hash_chain = SHA256(original_bytes + sig1_raw + sig2_raw + ...)
-    garantizando que cada firma depende criptográficamente de las anteriores.
+    Para DOCX: añade un bloque de firma adicional al documento, encadenado
+    criptográficamente con las firmas anteriores.
+    Para otros formatos: usa el contenedor .msigned.
 
     Devuelve (output_path, output_bytes).
     """
     private_key = _load_private_key(username)
     certificate = _load_certificate(username)
+    ext = os.path.splitext(file_path)[1].lower()
 
+    if ext in (".docx", ".doc"):
+        return _sign_docx_route_step(username, file_path, private_key, certificate)
+    else:
+        return _sign_msigned_route_step(username, file_path, private_key, certificate)
+
+
+def _sign_docx_route_step(username, file_path, private_key, certificate):
+    """Añade un bloque de firma de ruta a un DOCX, encadenado con los anteriores."""
+    from docx import Document
+
+    # Hash del contenido original (se excluyen bloques de firma existentes)
+    original_hash = _docx_content_hash(file_path)
+
+    # Extraer firmas de ruta previas embebidas en el documento
+    doc_read  = Document(file_path)
+    prev_sigs = []
+    for para in doc_read.paragraphs:
+        if para.text.startswith(_DOCX_JSON_MARK):
+            try:
+                meta = json.loads(
+                    base64.b64decode(para.text[len(_DOCX_JSON_MARK):]).decode("utf-8")
+                )
+                prev_sigs.append(meta)
+            except Exception:
+                pass
+    prev_sigs.sort(key=lambda s: s.get("order", 1))
+
+    # Hash de cadena
+    if not prev_sigs:
+        hash_chain = original_hash          # primer firmante: igual al hash de contenido
+    else:
+        chain_input = original_hash.encode()
+        for s in prev_sigs:
+            chain_input += base64.b64decode(s["signature"])
+        hash_chain = hashlib.sha256(chain_input).hexdigest()
+
+    raw_sig = _rsa_sign(private_key, hash_chain.encode())
+
+    # Nombre original sin sufijos _firmado acumulados
+    orig_name = re.sub(r"(_firmado)+$", "", os.path.splitext(os.path.basename(file_path))[0])
+
+    sig_meta = {
+        "route_signature":   True,
+        "order":             len(prev_sigs) + 1,
+        "signer":            username,
+        "original_filename": orig_name + ".docx",
+        "algorithm":         "RSA-PSS-SHA256",
+        "hash_sha256":       original_hash,
+        "hash_chain":        hash_chain,
+        "signature":         base64.b64encode(raw_sig).decode(),
+        "certificate":       certificate,
+        "signed_at":         datetime.utcnow().isoformat() + "Z",
+    }
+
+    # Ruta de salida: siempre {original}_firmado.docx
+    base_stem   = re.sub(r"(_firmado)+$", "", os.path.splitext(file_path)[0])
+    signed_path = base_stem + "_firmado.docx"
+
+    # Escribir en temporal para evitar leer y escribir el mismo archivo
+    tmp_out = signed_path + ".writing"
+    shutil.copy2(file_path, tmp_out)
+    doc = Document(tmp_out)
+    _append_docx_sig_block(doc, sig_meta, certificate)
+    doc.save(tmp_out)
+    os.replace(tmp_out, signed_path)
+
+    with open(signed_path, "rb") as f:
+        output_bytes = f.read()
+    return signed_path, output_bytes
+
+
+def _sign_msigned_route_step(username, file_path, private_key, certificate):
+    """Firma de ruta para formatos no-DOCX usando contenedor .msigned."""
     ext = os.path.splitext(file_path)[1].lower()
 
     if ext == _MSIGNED_EXT:
@@ -482,7 +599,6 @@ def sign_for_route(username, file_path):
 
     prev_sigs = prev_data.get("signatures", [])
 
-    # Hash de cadena: SHA256(original || sig_raw_1 || sig_raw_2 || ...)
     chain_input = original_bytes
     for s in prev_sigs:
         chain_input += base64.b64decode(s["signature"])
@@ -490,15 +606,14 @@ def sign_for_route(username, file_path):
     hash_original = hashlib.sha256(original_bytes).hexdigest()
 
     raw_sig = _rsa_sign(private_key, hash_chain.encode())
-
     new_sig = {
-        "order":      len(prev_sigs) + 1,
-        "signer":     username,
-        "signed_at":  datetime.utcnow().isoformat() + "Z",
-        "hash_sha256":  hash_original,
-        "hash_chain":   hash_chain,
-        "signature":    base64.b64encode(raw_sig).decode(),
-        "certificate":  certificate,
+        "order":       len(prev_sigs) + 1,
+        "signer":      username,
+        "signed_at":   datetime.utcnow().isoformat() + "Z",
+        "hash_sha256": hash_original,
+        "hash_chain":  hash_chain,
+        "signature":   base64.b64encode(raw_sig).decode(),
+        "certificate": certificate,
     }
 
     output_data = {
@@ -508,18 +623,17 @@ def sign_for_route(username, file_path):
         "signatures":        prev_sigs + [new_sig],
     }
 
-    # Guardar contenedor .msigned
-    base_ = os.path.splitext(file_path)[0].removesuffix("_firmado")
-    output_path = base_ + "_firmado.msigned"
+    base_stem   = re.sub(r"(_firmado)+$", "", os.path.splitext(file_path)[0])
+    output_path = base_stem + "_firmado.msigned"
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("original",       original_bytes)
+        zf.writestr("original",
+                    original_bytes)
         zf.writestr("signatures.json",
                     json.dumps(output_data, indent=2, ensure_ascii=False).encode("utf-8"))
     output_bytes = buf.getvalue()
     with open(output_path, "wb") as f:
         f.write(output_bytes)
-
     return output_path, output_bytes
 
 
