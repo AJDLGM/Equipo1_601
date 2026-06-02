@@ -609,7 +609,31 @@ def start_app():
                         tk.END,
                         f"  {r['requester']:<16} {r['document_name'][:24]:<26} {date}")
 
-            def _forward():
+            def _forward_route():
+                """Envía la solicitud al primer coordinador de la ruta de firmas."""
+                sel = _op_lb.curselection()
+                if not sel:
+                    messagebox.showwarning("Sin selección",
+                                           "Selecciona una solicitud.", parent=dash)
+                    return
+                req = _op_store[0][sel[0]]
+                if api.forward_to_route(req["id"]):
+                    route = api.get_firma_route()
+                    messagebox.showinfo(
+                        "Enviado a ruta",
+                        f"Solicitud enviada a la ruta de firmas.\n"
+                        f"Primer coordinador: {route[0] if route else '—'}",
+                        parent=dash)
+                    _refresh_op()
+                else:
+                    messagebox.showerror(
+                        "Error",
+                        "No se pudo enviar a la ruta.\n"
+                        "Verifica que el administrador haya definido una ruta de firmas.",
+                        parent=dash)
+
+            def _forward_manual():
+                """Canaliza manualmente a un coordinador (flujo legado)."""
                 sel = _op_lb.curselection()
                 if not sel:
                     messagebox.showwarning("Sin selección",
@@ -664,7 +688,9 @@ def start_app():
             _row_op.pack(fill="x")
             _btn(_row_op, "Actualizar", _refresh_op, bg=NEUTRAL
                  ).pack(side="left", padx=(0, 6), pady=2)
-            _btn(_row_op, "Canalizar a coordinador", _forward, bg=PRIMARY
+            _btn(_row_op, "Enviar a ruta de firmas", _forward_route, bg=PRIMARY
+                 ).pack(side="left", padx=(0, 6), pady=2)
+            _btn(_row_op, "Canalizar manualmente", _forward_manual, bg=NEUTRAL
                  ).pack(side="left", pady=2)
 
         # AUTORIZAR
@@ -689,16 +715,30 @@ def start_app():
                     api.log_action(
                         f"Verificación de archivo: firma válida | archivo:{os.path.basename(path)} | firmante:{result['signer']}"
                     )
-                    messagebox.showinfo(
-                        "Firma válida",
-                        f"El documento es auténtico e íntegro.\n\n"
-                        f"Firmante     : {result['signer']}\n"
-                        f"Archivo      : {result['original_filename']}\n"
-                        f"Firmado el   : {signed_at}\n"
-                        f"Hash SHA-256 : {result['hash_sha256'][:40]}...\n"
-                        f"Cert. estado : {result['cert_status']}",
-                        parent=dash
-                    )
+                    if result.get("total_signatures", 1) > 1:
+                        # Documento de ruta multi-firma
+                        ruta_str = " → ".join(result.get("route", []))
+                        messagebox.showinfo(
+                            "Ruta de firmas válida",
+                            f"El documento tiene TODAS las firmas de la ruta y es válido.\n\n"
+                            f"Archivo      : {result['original_filename']}\n"
+                            f"Ruta definida: {ruta_str}\n"
+                            f"Firmantes    : {result['all_signers']}\n"
+                            f"Última firma : {signed_at}\n"
+                            f"Hash SHA-256 : {result['hash_sha256'][:40]}...",
+                            parent=dash,
+                        )
+                    else:
+                        messagebox.showinfo(
+                            "Firma válida",
+                            f"El documento es auténtico e íntegro.\n\n"
+                            f"Firmante     : {result['signer']}\n"
+                            f"Archivo      : {result['original_filename']}\n"
+                            f"Firmado el   : {signed_at}\n"
+                            f"Hash SHA-256 : {result['hash_sha256'][:40]}...\n"
+                            f"Cert. estado : {result['cert_status']}",
+                            parent=dash,
+                        )
                 else:
                     api.log_action(f"Verificación de archivo: firma inválida | archivo:{os.path.basename(path)}")
                     messagebox.showerror("Firma inválida", result, parent=dash)
@@ -755,6 +795,8 @@ def start_app():
                                          "No se pudo descargar el documento.", parent=dash)
                     return
 
+                is_route = req.get("route_step", 0) >= 1
+
                 import tempfile
                 import shutil as _shutil
                 tmp = tempfile.mkdtemp()
@@ -762,21 +804,44 @@ def start_app():
                 try:
                     with open(tmp_path, "wb") as f:
                         f.write(doc_bytes)
-                    signed_path = sign_file(username, tmp_path)
-                    with open(signed_path, "rb") as f:
-                        signed_bytes = f.read()
-                    signed_name = os.path.basename(signed_path)
 
-                    if api.complete_signing_request(req["id"], signed_name, signed_bytes):
-                        messagebox.showinfo(
-                            "Firmado",
-                            f"Documento '{doc_name}' firmado.\n"
-                            f"El solicitante puede descargarlo.", parent=dash)
-                        _refresh_cd()
+                    if is_route:
+                        from crypto.signature import sign_for_route
+                        signed_path, signed_bytes = sign_for_route(username, tmp_path)
+                        signed_name = os.path.basename(signed_path)
+                        result = api.advance_route_step(req["id"], signed_name, signed_bytes)
+                        if result:
+                            route = api.get_firma_route()
+                            current_step = req.get("route_step", 1)
+                            if current_step >= len(route):
+                                msg = (f"Documento '{doc_name}' firmado.\n"
+                                       "Es la última firma de la ruta.\n"
+                                       "El solicitante ya puede descargarlo.")
+                            else:
+                                next_coord = route[current_step] if current_step < len(route) else "—"
+                                msg = (f"Documento '{doc_name}' firmado.\n"
+                                       f"Enviado al siguiente coordinador: {next_coord}")
+                            messagebox.showinfo("Firmado (ruta)", msg, parent=dash)
+                            _refresh_cd()
+                        else:
+                            messagebox.showerror("Error",
+                                                 "No se pudo registrar la firma en la ruta.",
+                                                 parent=dash)
                     else:
-                        messagebox.showerror("Error",
-                                             "No se pudo guardar el documento firmado.",
-                                             parent=dash)
+                        signed_path = sign_file(username, tmp_path)
+                        with open(signed_path, "rb") as f:
+                            signed_bytes = f.read()
+                        signed_name = os.path.basename(signed_path)
+                        if api.complete_signing_request(req["id"], signed_name, signed_bytes):
+                            messagebox.showinfo(
+                                "Firmado",
+                                f"Documento '{doc_name}' firmado.\n"
+                                f"El solicitante puede descargarlo.", parent=dash)
+                            _refresh_cd()
+                        else:
+                            messagebox.showerror("Error",
+                                                 "No se pudo guardar el documento firmado.",
+                                                 parent=dash)
                 except Exception as e:
                     messagebox.showerror("Error al firmar", str(e), parent=dash)
                 finally:

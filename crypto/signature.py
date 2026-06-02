@@ -443,6 +443,158 @@ def _verify_container(file_path):
     return True, _info_from_meta(sig_meta)
 
 
+# ── Firma encadenada (ruta de firmas) ────────────────────────────────────────
+
+_MSIGNED_EXT = ".msigned"
+
+
+def sign_for_route(username, file_path):
+    """
+    Firma un documento dentro de una ruta multi-firma.
+
+    - Si `file_path` ya es un .msigned: añade la firma al final de la cadena.
+    - Si es un archivo normal: crea un nuevo contenedor .msigned con la primera firma.
+
+    La firma de cadena se calcula como:
+      hash_chain = SHA256(original_bytes + sig1_raw + sig2_raw + ...)
+    garantizando que cada firma depende criptográficamente de las anteriores.
+
+    Devuelve (output_path, output_bytes).
+    """
+    private_key = _load_private_key(username)
+    certificate = _load_certificate(username)
+
+    ext = os.path.splitext(file_path)[1].lower()
+
+    if ext == _MSIGNED_EXT:
+        with zipfile.ZipFile(file_path, "r") as zf:
+            original_bytes = zf.read("original")
+            prev_data      = json.loads(zf.read("signatures.json").decode("utf-8"))
+    else:
+        with open(file_path, "rb") as f:
+            original_bytes = f.read()
+        prev_data = {
+            "version":           2,
+            "original_filename": os.path.basename(file_path),
+            "route":             [],
+            "signatures":        [],
+        }
+
+    prev_sigs = prev_data.get("signatures", [])
+
+    # Hash de cadena: SHA256(original || sig_raw_1 || sig_raw_2 || ...)
+    chain_input = original_bytes
+    for s in prev_sigs:
+        chain_input += base64.b64decode(s["signature"])
+    hash_chain    = hashlib.sha256(chain_input).hexdigest()
+    hash_original = hashlib.sha256(original_bytes).hexdigest()
+
+    raw_sig = _rsa_sign(private_key, hash_chain.encode())
+
+    new_sig = {
+        "order":      len(prev_sigs) + 1,
+        "signer":     username,
+        "signed_at":  datetime.utcnow().isoformat() + "Z",
+        "hash_sha256":  hash_original,
+        "hash_chain":   hash_chain,
+        "signature":    base64.b64encode(raw_sig).decode(),
+        "certificate":  certificate,
+    }
+
+    output_data = {
+        "version":           2,
+        "original_filename": prev_data.get("original_filename", os.path.basename(file_path)),
+        "route":             prev_data.get("route", []),
+        "signatures":        prev_sigs + [new_sig],
+    }
+
+    # Guardar contenedor .msigned
+    base_ = os.path.splitext(file_path)[0].removesuffix("_firmado")
+    output_path = base_ + "_firmado.msigned"
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("original",       original_bytes)
+        zf.writestr("signatures.json",
+                    json.dumps(output_data, indent=2, ensure_ascii=False).encode("utf-8"))
+    output_bytes = buf.getvalue()
+    with open(output_path, "wb") as f:
+        f.write(output_bytes)
+
+    return output_path, output_bytes
+
+
+def verify_route_file(file_path):
+    """
+    Verifica un contenedor .msigned de ruta multi-firma.
+    Comprueba:
+      1. El orden de firmas coincide con la ruta embebida.
+      2. Cada hash de cadena es correcto (el orden no fue alterado).
+      3. Cada firma RSA es válida criptográficamente.
+    """
+    try:
+        with zipfile.ZipFile(file_path, "r") as zf:
+            original_bytes = zf.read("original")
+            data = json.loads(zf.read("signatures.json").decode("utf-8"))
+    except Exception:
+        return False, "El archivo no es un contenedor multi-firma válido (.msigned)."
+
+    signatures = data.get("signatures", [])
+    route      = data.get("route",      [])
+
+    if not signatures:
+        return False, "El documento no contiene ninguna firma."
+
+    # Verificar que el orden de firmantes coincide con la ruta definida
+    if route:
+        signers = [s["signer"] for s in sorted(signatures, key=lambda x: x["order"])]
+        if signers != route:
+            return False, (
+                "Las firmas NO siguen la ruta definida.\n\n"
+                f"Ruta esperada  : {' → '.join(route)}\n"
+                f"Firmas halladas: {' → '.join(signers)}"
+            )
+
+    # Verificar cada firma en la cadena
+    chain_input   = original_bytes
+    hash_original = hashlib.sha256(original_bytes).hexdigest()
+
+    for i, sig in enumerate(sorted(signatures, key=lambda x: x["order"])):
+        expected_hash = hashlib.sha256(chain_input).hexdigest()
+        if sig.get("hash_chain", "") != expected_hash:
+            return False, (
+                f"La firma #{sig['order']} ({sig.get('signer','?')}) no es válida.\n"
+                "El hash de cadena no coincide: el orden fue alterado o falta una firma."
+            )
+        try:
+            pub_key = _public_key_from_cert(sig.get("certificate", {}))
+            raw_sig = base64.b64decode(sig["signature"])
+            _rsa_verify(pub_key, raw_sig, expected_hash.encode())
+        except ValueError as e:
+            return False, str(e)
+        except Exception:
+            return False, (
+                f"La firma #{sig['order']} ({sig.get('signer','?')}) "
+                "no es válida criptográficamente."
+            )
+        chain_input += raw_sig
+
+    last = sorted(signatures, key=lambda x: x["order"])[-1]
+    all_signers = " → ".join(
+        f"{s['signer']} (#{s['order']})"
+        for s in sorted(signatures, key=lambda x: x["order"])
+    )
+    return True, {
+        "signer":            last["signer"],
+        "original_filename": data.get("original_filename", ""),
+        "signed_at":         last["signed_at"],
+        "hash_sha256":       hash_original,
+        "cert_status":       last.get("certificate", {}).get("status", "unknown"),
+        "route":             route,
+        "all_signers":       all_signers,
+        "total_signatures":  len(signatures),
+    }
+
+
 # ── API pública ───────────────────────────────────────────────────────────────
 
 def sign_file(username, file_path):
@@ -459,7 +611,9 @@ def sign_file(username, file_path):
 
 def verify_file(file_path):
     ext = os.path.splitext(file_path)[1].lower()
-    if ext in (".docx", ".doc"):
+    if ext == _MSIGNED_EXT:
+        return verify_route_file(file_path)
+    elif ext in (".docx", ".doc"):
         return _verify_docx(file_path)
     elif ext == ".pdf":
         return _verify_pdf(file_path)

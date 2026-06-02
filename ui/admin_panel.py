@@ -152,9 +152,12 @@ def open_admin_panel(admin_username):
     tab_rev  = tk.Frame(nb, bg=BG)
     tab_baja = tk.Frame(nb, bg=BG)
 
+    tab_ruta = tk.Frame(nb, bg=BG)
+
     nb.add(tab_alta, text="  Alta  ")
     nb.add(tab_rev,  text="  Revocación  ")
     nb.add(tab_baja, text="  Baja  ")
+    nb.add(tab_ruta, text="  Ruta de Firmas  ")
 
     rev_refresher = [None]
 
@@ -165,6 +168,7 @@ def open_admin_panel(admin_username):
 
     _build_alta(tab_alta, admin_username,
                 on_register=lambda: (refresh_rev(), refresh_baja()))
+    _build_ruta(tab_ruta, admin_username)
 
 
 # ── RF01: Alta de identidad ──────────────────────────────────
@@ -457,3 +461,143 @@ def _build_baja(parent, admin_username, on_deactivate=None):
     outer.after(10000, _auto_refresh)
 
     return refresh_users
+
+
+# ── RF04: Ruta de firmas ──────────────────────────────────────
+
+def _build_ruta(parent, admin_username):
+    api = get_client()
+
+    outer = tk.Frame(parent, bg=BG)
+    outer.pack(fill="both", expand=True, padx=24, pady=20)
+
+    # ── Ruta actual ──────────────────────────────────────────
+    card_ruta = tk.Frame(outer, bg=CARD, highlightbackground=BORDER, highlightthickness=1)
+    card_ruta.pack(fill="x", pady=(0, 12))
+    _section_header(card_ruta, "Ruta de firmas activa (en orden)")
+
+    body_ruta = tk.Frame(card_ruta, bg=CARD)
+    body_ruta.pack(fill="x", padx=20, pady=14)
+
+    tk.Label(body_ruta,
+             text="Define el orden en que los coordinadores deben firmar los documentos.\n"
+                  "Todos deben firmar en el orden indicado para que el documento sea válido.",
+             font=(FONT, 9), bg=CARD, fg=SUBTEXT, justify="left").pack(anchor="w", pady=(0, 10))
+
+    route_lb_frame = tk.Frame(body_ruta, bg=CARD, highlightbackground=BORDER, highlightthickness=1)
+    route_lb_frame.pack(fill="x", pady=(0, 8))
+    route_lb = tk.Listbox(
+        route_lb_frame, height=5,
+        relief="flat", bd=0, font=(FONT, 10),
+        bg=CARD, fg=TEXT,
+        selectbackground=PRIMARY, selectforeground="white",
+        activestyle="none",
+    )
+    route_lb.pack(fill="x", padx=4, pady=4)
+
+    _route = []  # lista mutable de la ruta actual
+
+    def _render_route():
+        route_lb.delete(0, tk.END)
+        for i, coord in enumerate(_route, start=1):
+            route_lb.insert(tk.END, f"  {i}.  {coord}")
+
+    def _load_route():
+        _route.clear()
+        _route.extend(api.get_firma_route())
+        _render_route()
+
+    _load_route()
+
+    # ── Botones mover ────────────────────────────────────────
+    btn_row = tk.Frame(body_ruta, bg=CARD)
+    btn_row.pack(fill="x", pady=(0, 8))
+
+    def _move_up():
+        sel = route_lb.curselection()
+        if not sel or sel[0] == 0:
+            return
+        i = sel[0]
+        _route[i - 1], _route[i] = _route[i], _route[i - 1]
+        _render_route()
+        route_lb.selection_set(i - 1)
+
+    def _move_down():
+        sel = route_lb.curselection()
+        if not sel or sel[0] >= len(_route) - 1:
+            return
+        i = sel[0]
+        _route[i], _route[i + 1] = _route[i + 1], _route[i]
+        _render_route()
+        route_lb.selection_set(i + 1)
+
+    def _remove():
+        sel = route_lb.curselection()
+        if not sel:
+            return
+        _route.pop(sel[0])
+        _render_route()
+
+    _btn(btn_row, "↑ Subir",   _move_up,   bg=NEUTRAL).pack(side="left", padx=(0, 6))
+    _btn(btn_row, "↓ Bajar",   _move_down, bg=NEUTRAL).pack(side="left", padx=(0, 6))
+    _btn(btn_row, "✕ Quitar",  _remove,    bg=DANGER ).pack(side="left")
+
+    # ── Agregar coordinador ──────────────────────────────────
+    card_add = tk.Frame(outer, bg=CARD, highlightbackground=BORDER, highlightthickness=1)
+    card_add.pack(fill="x", pady=(0, 12))
+    _section_header(card_add, "Agregar coordinador a la ruta")
+
+    body_add = tk.Frame(card_add, bg=CARD)
+    body_add.pack(fill="x", padx=20, pady=14)
+
+    tk.Label(body_add, text="Coordinador disponible:",
+             font=(FONT, 9), bg=CARD, fg=SUBTEXT).pack(anchor="w")
+
+    add_var = tk.StringVar()
+    add_cb  = ttk.Combobox(body_add, textvariable=add_var, state="readonly", font=(FONT, 10))
+    add_cb.pack(fill="x", pady=(2, 10))
+
+    def _refresh_coords():
+        coords = [u for u, r in api.get_active_users() if r == "coordinador"
+                  and u not in _route]
+        add_cb["values"] = coords
+        if coords:
+            add_var.set(coords[0])
+        else:
+            add_var.set("")
+
+    _refresh_coords()
+
+    def _add_coord():
+        coord = add_var.get()
+        if coord and coord not in _route:
+            _route.append(coord)
+            _render_route()
+            _refresh_coords()
+
+    _btn(body_add, "Agregar a la ruta", _add_coord, bg=NEUTRAL, full=True)
+
+    # ── Guardar ruta ─────────────────────────────────────────
+    status_var = tk.StringVar()
+    status_lbl = tk.Label(outer, textvariable=status_var,
+                          font=(FONT, 9, "bold"), bg=BG)
+    status_lbl.pack(anchor="w", pady=(0, 4))
+
+    def _save_route():
+        if not _route:
+            if not messagebox.askyesno(
+                "Ruta vacía",
+                "¿Deseas guardar una ruta vacía?\n"
+                "Los documentos no podrán ser firmados por la ruta.",
+                parent=outer.winfo_toplevel(),
+            ):
+                return
+        if api.set_firma_route(_route):
+            status_lbl.config(fg=SUCCESS)
+            status_var.set("✓ Ruta guardada correctamente.")
+            _refresh_coords()
+        else:
+            status_lbl.config(fg=DANGER)
+            status_var.set("✗ Error al guardar la ruta.")
+
+    _btn(outer, "Guardar ruta de firmas", _save_route, bg=PRIMARY, full=True, pady=10)

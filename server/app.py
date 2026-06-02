@@ -258,21 +258,41 @@ def incoming_signing_requests():
     sess = _session()
     if not sess:
         return jsonify({"error": "No autenticado"}), 401
-    from db.signing_requests import get_requests_for_operativo, get_requests_for_coordinador
+    from db.signing_requests import (get_requests_for_operativo,
+                                     get_requests_for_coordinador,
+                                     get_requests_at_route_step)
+    from db.firma_route import get_firma_route
     role = sess["role"]
     username = sess["username"]
+
     if role == "operativo":
         rows = get_requests_for_operativo(username)
         return jsonify([{
             "id": r[0], "requester": r[1], "document_name": r[2],
             "status": r[3], "notes": r[4], "created_at": r[5],
         } for r in rows])
+
     if role in ("coordinador", "admin"):
-        rows = get_requests_for_coordinador(username)
-        return jsonify([{
-            "id": r[0], "requester": r[1], "document_name": r[2],
-            "status": r[3], "notes": r[4], "created_at": r[5], "operativo": r[6],
-        } for r in rows])
+        results = []
+        # Solicitudes de la ruta en las que le toca a este coordinador
+        route = get_firma_route()
+        if username in route:
+            step = route.index(username) + 1  # 1-indexed
+            for r in get_requests_at_route_step(step):
+                results.append({
+                    "id": r[0], "requester": r[1], "document_name": r[2],
+                    "status": r[3], "notes": r[4], "created_at": r[5],
+                    "operativo": "", "route_step": step,
+                })
+        # Solicitudes del flujo legado (coordinador elegido manualmente)
+        for r in get_requests_for_coordinador(username):
+            results.append({
+                "id": r[0], "requester": r[1], "document_name": r[2],
+                "status": r[3], "notes": r[4], "created_at": r[5],
+                "operativo": r[6], "route_step": 0,
+            })
+        return jsonify(results)
+
     return jsonify([])
 
 
@@ -282,8 +302,12 @@ def download_signing_document(req_id):
     sess = _session()
     if not sess:
         return jsonify({"error": "No autenticado"}), 401
-    from db.signing_requests import get_request_document
-    row = get_request_document(req_id)
+    from db.signing_requests import get_request_document, get_document_for_route_step, get_route_step
+    step = get_route_step(req_id)
+    if step >= 1:
+        row = get_document_for_route_step(req_id, step)
+    else:
+        row = get_request_document(req_id)
     if not row or not row[1]:
         return jsonify({"error": "Documento no encontrado"}), 404
     return jsonify({
@@ -338,6 +362,83 @@ def download_signed_document(req_id):
         "document_name": row[0],
         "document_data_b64": base64.b64encode(row[1]).decode(),
     })
+
+
+# ── Ruta de firmas (admin) ────────────────────────────────────
+
+@app.route("/admin/firma-route", methods=["GET"])
+def get_firma_route_endpoint():
+    if not _session():
+        return jsonify({"error": "No autenticado"}), 401
+    from db.firma_route import get_firma_route
+    return jsonify({"route": get_firma_route()})
+
+
+@app.route("/admin/firma-route", methods=["POST"])
+def set_firma_route_endpoint():
+    sess = _session()
+    if not sess or sess.get("role") != "admin":
+        return jsonify({"error": "Solo el administrador puede definir la ruta"}), 403
+    data = request.json or {}
+    route = data.get("route", [])
+    from db.firma_route import set_firma_route
+    set_firma_route(route, sess["username"])
+    log_action(sess["username"],
+               f"Ruta de firmas actualizada: {' → '.join(route) if route else '(vacía)'}")
+    return jsonify({"ok": True})
+
+
+@app.route("/signing-requests/<int:req_id>/forward-route", methods=["POST"])
+def forward_to_route_endpoint(req_id):
+    """Operativo aprueba y envía al primer coordinador de la ruta."""
+    sess = _session()
+    if not sess:
+        return jsonify({"error": "No autenticado"}), 401
+    from db.firma_route import get_firma_route
+    from db.signing_requests import forward_to_route
+    route = get_firma_route()
+    if not route:
+        return jsonify({"error": "No hay ruta de firmas definida"}), 400
+    forward_to_route(req_id)
+    log_action(sess["username"],
+               f"Solicitud {req_id} enviada a ruta de firmas — primer coordinador: {route[0]}")
+    return jsonify({"ok": True, "first_coordinator": route[0]})
+
+
+@app.route("/signing-requests/<int:req_id>/advance", methods=["POST"])
+def advance_signing_route(req_id):
+    """Coordinador firma y avanza al siguiente paso de la ruta."""
+    sess = _session()
+    if not sess:
+        return jsonify({"error": "No autenticado"}), 401
+    try:
+        signed_file = request.files.get("signed_document")
+        if not signed_file:
+            return jsonify({"error": "No se recibió el documento firmado"}), 400
+        signed_bytes = signed_file.read()
+        signed_name  = signed_file.filename or "documento_firmado.msigned"
+
+        from db.firma_route import get_firma_route
+        from db.signing_requests import get_route_step, advance_route_step
+        route = get_firma_route()
+        current_step = get_route_step(req_id)
+        next_step = current_step + 1
+        is_final = next_step > len(route)
+
+        advance_route_step(req_id, signed_name, signed_bytes, next_step, is_final)
+
+        signer = sess["username"]
+        if is_final:
+            log_action(signer,
+                       f"Ruta de firmas completada — solicitud {req_id} | último firmante: {signer}")
+        else:
+            next_coord = route[next_step - 1]
+            log_action(signer,
+                       f"Firma de ruta — solicitud {req_id} paso {current_step}/{len(route)} | siguiente: {next_coord}")
+
+        return jsonify({"ok": True, "completed": is_final})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ── Log de cliente ────────────────────────────────────────────

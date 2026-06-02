@@ -74,6 +74,23 @@ def create_tables():
     )
     """)
 
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS firma_route (
+        orden        INTEGER PRIMARY KEY,
+        coordinador  TEXT NOT NULL,
+        definido_en  TEXT,
+        definido_por TEXT
+    )
+    """)
+
+    # Migración: agregar route_step a signing_requests
+    try:
+        cur.execute(
+            "ALTER TABLE signing_requests ADD COLUMN route_step INTEGER DEFAULT 0"
+        )
+    except Exception:
+        pass
+
     con.commit()
     _migrate_files_to_db(cur, con)
     con.close()

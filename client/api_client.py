@@ -213,3 +213,24 @@ class APIClient:
         if err:
             return None, None
         return result["document_name"], base64.b64decode(result["document_data_b64"])
+
+    # ── Ruta de firmas ────────────────────────────────────────
+
+    def get_firma_route(self):
+        result, err = self._req("GET", "/admin/firma-route")
+        return [] if err else result.get("route", [])
+
+    def set_firma_route(self, coordinadores: list):
+        _, err = self._req("POST", "/admin/firma-route", {"route": coordinadores})
+        return err is None
+
+    def forward_to_route(self, req_id):
+        _, err = self._req("POST", f"/signing-requests/{req_id}/forward-route", {})
+        return err is None
+
+    def advance_route_step(self, req_id, signed_name, signed_bytes):
+        _, err = self._req_multipart(
+            "POST", f"/signing-requests/{req_id}/advance",
+            files={"signed_document": (signed_name, signed_bytes)},
+        )
+        return err is None
