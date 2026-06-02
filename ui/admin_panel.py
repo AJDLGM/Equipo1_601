@@ -471,6 +471,13 @@ def _build_ruta(parent, admin_username):
     outer = tk.Frame(parent, bg=BG)
     outer.pack(fill="both", expand=True, padx=24, pady=20)
 
+    # ── Estado (definido primero para que _load_route lo pueda usar) ──
+    status_var = tk.StringVar()
+    status_lbl = tk.Label(outer, textvariable=status_var,
+                          font=(FONT, 9, "bold"), bg=BG)
+
+    _route = []  # lista mutable de la ruta actual
+
     # ── Ruta actual ──────────────────────────────────────────
     card_ruta = tk.Frame(outer, bg=CARD, highlightbackground=BORDER, highlightthickness=1)
     card_ruta.pack(fill="x", pady=(0, 12))
@@ -495,31 +502,30 @@ def _build_ruta(parent, admin_username):
     )
     route_lb.pack(fill="x", padx=4, pady=4)
 
-    _route = []  # lista mutable de la ruta actual
-
     def _render_route():
         route_lb.delete(0, tk.END)
-        for i, coord in enumerate(_route, start=1):
-            route_lb.insert(tk.END, f"  {i}.  {coord}")
+        if _route:
+            for i, coord in enumerate(_route, start=1):
+                route_lb.insert(tk.END, f"  {i}.  {coord}")
+        else:
+            route_lb.insert(tk.END, "  (sin coordinadores — la ruta está vacía)")
 
     def _load_route():
         _route.clear()
         ruta, ok = api.get_firma_route()
         if not ok:
-            status_var.set("⚠ No se pudo conectar con el servidor para cargar la ruta.")
+            status_var.set("⚠ No se pudo cargar la ruta desde el servidor.")
             status_lbl.config(fg=DANGER)
         else:
             _route.extend(ruta)
+            status_var.set(f"Ruta cargada: {len(_route)} coordinador(es).")
+            status_lbl.config(fg=SUBTEXT)
         _render_route()
-
-    _load_route()
-
-    _btn(body_ruta, "↺ Recargar desde servidor", _load_route, bg=NEUTRAL, full=True)
-    tk.Frame(body_ruta, bg=CARD, height=6).pack()
+        _refresh_coords()  # actualiza el combobox tras recargar
 
     # ── Botones mover ────────────────────────────────────────
     btn_row = tk.Frame(body_ruta, bg=CARD)
-    btn_row.pack(fill="x", pady=(0, 8))
+    btn_row.pack(fill="x", pady=(0, 4))
 
     def _move_up():
         sel = route_lb.curselection()
@@ -541,14 +547,15 @@ def _build_ruta(parent, admin_username):
 
     def _remove():
         sel = route_lb.curselection()
-        if not sel:
+        if not sel or not _route:
             return
         _route.pop(sel[0])
         _render_route()
+        _refresh_coords()
 
-    _btn(btn_row, "↑ Subir",   _move_up,   bg=NEUTRAL).pack(side="left", padx=(0, 6))
-    _btn(btn_row, "↓ Bajar",   _move_down, bg=NEUTRAL).pack(side="left", padx=(0, 6))
-    _btn(btn_row, "✕ Quitar",  _remove,    bg=DANGER ).pack(side="left")
+    _btn(btn_row, "↑ Subir",  _move_up,   bg=NEUTRAL).pack(side="left", padx=(0, 6))
+    _btn(btn_row, "↓ Bajar",  _move_down, bg=NEUTRAL).pack(side="left", padx=(0, 6))
+    _btn(btn_row, "✕ Quitar", _remove,    bg=DANGER ).pack(side="left")
 
     # ── Agregar coordinador ──────────────────────────────────
     card_add = tk.Frame(outer, bg=CARD, highlightbackground=BORDER, highlightthickness=1)
@@ -558,38 +565,60 @@ def _build_ruta(parent, admin_username):
     body_add = tk.Frame(card_add, bg=CARD)
     body_add.pack(fill="x", padx=20, pady=14)
 
-    tk.Label(body_add, text="Coordinador disponible:",
-             font=(FONT, 9), bg=CARD, fg=SUBTEXT).pack(anchor="w")
+    coords_lbl = tk.Label(body_add, text="Coordinador disponible:",
+                          font=(FONT, 9), bg=CARD, fg=SUBTEXT)
+    coords_lbl.pack(anchor="w")
 
     add_var = tk.StringVar()
     add_cb  = ttk.Combobox(body_add, textvariable=add_var, state="readonly", font=(FONT, 10))
-    add_cb.pack(fill="x", pady=(2, 10))
+    add_cb.pack(fill="x", pady=(2, 6))
+
+    coords_hint = tk.Label(body_add, text="", font=(FONT, 8, "italic"), bg=CARD, fg=SUBTEXT)
+    coords_hint.pack(anchor="w", pady=(0, 6))
 
     def _refresh_coords():
-        coords = [u for u, r in api.get_active_users() if r == "coordinador"
-                  and u not in _route]
-        add_cb["values"] = coords
-        if coords:
-            add_var.set(coords[0])
-        else:
-            add_var.set("")
+        """Muestra TODOS los coordinadores activos; los ya en la ruta se marcan con ✓."""
+        todos = [u for u, r in api.get_active_users() if r == "coordinador"]
+        disponibles = [u for u in todos if u not in _route]
+        en_ruta     = [u for u in todos if u in _route]
 
-    _refresh_coords()
+        if todos:
+            add_cb["values"] = disponibles
+            if disponibles:
+                add_var.set(disponibles[0])
+                coords_hint.config(
+                    text=f"{len(disponibles)} disponible(s)"
+                         + (f"  |  ya en ruta: {', '.join(en_ruta)}" if en_ruta else ""),
+                    fg=SUBTEXT,
+                )
+            else:
+                add_var.set("")
+                coords_hint.config(
+                    text="Todos los coordinadores ya están en la ruta.",
+                    fg=SUCCESS,
+                )
+        else:
+            add_cb["values"] = []
+            add_var.set("")
+            coords_hint.config(
+                text="⚠ No hay usuarios con rol 'coordinador' en el sistema.",
+                fg=DANGER,
+            )
 
     def _add_coord():
-        coord = add_var.get()
+        coord = add_var.get().strip()
         if coord and coord not in _route:
             _route.append(coord)
             _render_route()
             _refresh_coords()
 
-    _btn(body_add, "Agregar a la ruta", _add_coord, bg=NEUTRAL, full=True)
+    btn_add_row = tk.Frame(body_add, bg=CARD)
+    btn_add_row.pack(fill="x")
+    _btn(btn_add_row, "Agregar a la ruta", _add_coord, bg=NEUTRAL).pack(side="left", padx=(0, 8))
+    _btn(btn_add_row, "↺ Actualizar lista", _refresh_coords, bg=NEUTRAL).pack(side="left")
 
     # ── Guardar ruta ─────────────────────────────────────────
-    status_var = tk.StringVar()
-    status_lbl = tk.Label(outer, textvariable=status_var,
-                          font=(FONT, 9, "bold"), bg=BG)
-    status_lbl.pack(anchor="w", pady=(0, 4))
+    status_lbl.pack(anchor="w", pady=(10, 2))
 
     def _save_route():
         if not _route:
@@ -602,10 +631,13 @@ def _build_ruta(parent, admin_username):
                 return
         if api.set_firma_route(_route):
             status_lbl.config(fg=SUCCESS)
-            status_var.set("✓ Ruta guardada correctamente.")
-            _refresh_coords()
+            status_var.set(f"✓ Ruta guardada: {' → '.join(_route) if _route else '(vacía)'}")
         else:
             status_lbl.config(fg=DANGER)
-            status_var.set("✗ Error al guardar la ruta.")
+            status_var.set("✗ Error al guardar la ruta. Verifica la conexión.")
 
     _btn(outer, "Guardar ruta de firmas", _save_route, bg=PRIMARY, full=True, pady=10)
+    _btn(outer, "↺ Recargar desde servidor", _load_route, bg=NEUTRAL, full=True, pady=8)
+
+    # Cargar al final, cuando todos los widgets ya existen
+    _load_route()
