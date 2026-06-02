@@ -510,6 +510,16 @@ def _build_ruta(parent, admin_username):
         else:
             route_lb.insert(tk.END, "  (sin coordinadores — la ruta está vacía)")
 
+    def _autosave():
+        """Guarda la ruta automáticamente y muestra el resultado en el label de estado."""
+        if api.set_firma_route(_route):
+            route_str = " → ".join(_route) if _route else "(vacía)"
+            status_var.set(f"✓ Guardado automáticamente: {route_str}")
+            status_lbl.config(fg=SUCCESS)
+        else:
+            status_var.set("✗ Error al guardar. Verifica la conexión con el servidor.")
+            status_lbl.config(fg=DANGER)
+
     def _load_route():
         _route.clear()
         ruta, ok = api.get_firma_route()
@@ -518,10 +528,13 @@ def _build_ruta(parent, admin_username):
             status_lbl.config(fg=DANGER)
         else:
             _route.extend(ruta)
-            status_var.set(f"Ruta cargada: {len(_route)} coordinador(es).")
+            if _route:
+                status_var.set(f"Ruta activa: {' → '.join(_route)}")
+            else:
+                status_var.set("Sin ruta definida. Agrega coordinadores abajo.")
             status_lbl.config(fg=SUBTEXT)
         _render_route()
-        _refresh_coords()  # actualiza el combobox tras recargar
+        _refresh_coords()
 
     # ── Botones mover ────────────────────────────────────────
     btn_row = tk.Frame(body_ruta, bg=CARD)
@@ -535,6 +548,7 @@ def _build_ruta(parent, admin_username):
         _route[i - 1], _route[i] = _route[i], _route[i - 1]
         _render_route()
         route_lb.selection_set(i - 1)
+        _autosave()
 
     def _move_down():
         sel = route_lb.curselection()
@@ -544,14 +558,23 @@ def _build_ruta(parent, admin_username):
         _route[i], _route[i + 1] = _route[i + 1], _route[i]
         _render_route()
         route_lb.selection_set(i + 1)
+        _autosave()
 
     def _remove():
         sel = route_lb.curselection()
         if not sel or not _route:
             return
+        coord = _route[sel[0]]
+        if not _route or (len(_route) == 1 and not messagebox.askyesno(
+            "Quitar último coordinador",
+            f"¿Quitar '{coord}' dejará la ruta vacía.\n¿Continuar?",
+            parent=outer.winfo_toplevel(),
+        )):
+            return
         _route.pop(sel[0])
         _render_route()
         _refresh_coords()
+        _autosave()
 
     _btn(btn_row, "↑ Subir",  _move_up,   bg=NEUTRAL).pack(side="left", padx=(0, 6))
     _btn(btn_row, "↓ Bajar",  _move_down, bg=NEUTRAL).pack(side="left", padx=(0, 6))
@@ -611,32 +634,15 @@ def _build_ruta(parent, admin_username):
             _route.append(coord)
             _render_route()
             _refresh_coords()
+            _autosave()
 
     btn_add_row = tk.Frame(body_add, bg=CARD)
     btn_add_row.pack(fill="x")
-    _btn(btn_add_row, "Agregar a la ruta", _add_coord, bg=NEUTRAL).pack(side="left", padx=(0, 8))
+    _btn(btn_add_row, "Agregar a la ruta", _add_coord, bg=PRIMARY).pack(side="left", padx=(0, 8))
     _btn(btn_add_row, "↺ Actualizar lista", _refresh_coords, bg=NEUTRAL).pack(side="left")
 
-    # ── Guardar ruta ─────────────────────────────────────────
+    # ── Estado y recarga ──────────────────────────────────────
     status_lbl.pack(anchor="w", pady=(10, 2))
-
-    def _save_route():
-        if not _route:
-            if not messagebox.askyesno(
-                "Ruta vacía",
-                "¿Deseas guardar una ruta vacía?\n"
-                "Los documentos no podrán ser firmados por la ruta.",
-                parent=outer.winfo_toplevel(),
-            ):
-                return
-        if api.set_firma_route(_route):
-            status_lbl.config(fg=SUCCESS)
-            status_var.set(f"✓ Ruta guardada: {' → '.join(_route) if _route else '(vacía)'}")
-        else:
-            status_lbl.config(fg=DANGER)
-            status_var.set("✗ Error al guardar la ruta. Verifica la conexión.")
-
-    _btn(outer, "Guardar ruta de firmas", _save_route, bg=PRIMARY, full=True, pady=10)
     _btn(outer, "↺ Recargar desde servidor", _load_route, bg=NEUTRAL, full=True, pady=8)
 
     # Cargar al final, cuando todos los widgets ya existen
