@@ -618,7 +618,7 @@ def start_app():
                     return
                 req = _op_store[0][sel[0]]
                 if api.forward_to_route(req["id"]):
-                    route = api.get_firma_route()
+                    route, _ = api.get_firma_route()
                     messagebox.showinfo(
                         "Enviado a ruta",
                         f"Solicitud enviada a la ruta de firmas.\n"
@@ -811,7 +811,7 @@ def start_app():
                         signed_name = os.path.basename(signed_path)
                         result = api.advance_route_step(req["id"], signed_name, signed_bytes)
                         if result:
-                            route = api.get_firma_route()
+                            route, _ = api.get_firma_route()
                             current_step = req.get("route_step", 1)
                             if current_step >= len(route):
                                 msg = (f"Documento '{doc_name}' firmado.\n"

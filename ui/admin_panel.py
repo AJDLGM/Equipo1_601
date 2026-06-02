@@ -504,10 +504,18 @@ def _build_ruta(parent, admin_username):
 
     def _load_route():
         _route.clear()
-        _route.extend(api.get_firma_route())
+        ruta, ok = api.get_firma_route()
+        if not ok:
+            status_var.set("⚠ No se pudo conectar con el servidor para cargar la ruta.")
+            status_lbl.config(fg=DANGER)
+        else:
+            _route.extend(ruta)
         _render_route()
 
     _load_route()
+
+    _btn(body_ruta, "↺ Recargar desde servidor", _load_route, bg=NEUTRAL, full=True)
+    tk.Frame(body_ruta, bg=CARD, height=6).pack()
 
     # ── Botones mover ────────────────────────────────────────
     btn_row = tk.Frame(body_ruta, bg=CARD)

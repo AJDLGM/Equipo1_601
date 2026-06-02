@@ -217,8 +217,11 @@ class APIClient:
     # ── Ruta de firmas ────────────────────────────────────────
 
     def get_firma_route(self):
+        """Devuelve (lista, ok). ok=False si hubo error de red/servidor."""
         result, err = self._req("GET", "/admin/firma-route")
-        return [] if err else result.get("route", [])
+        if err:
+            return [], False
+        return result.get("route", []), True
 
     def set_firma_route(self, coordinadores: list):
         _, err = self._req("POST", "/admin/firma-route", {"route": coordinadores})
