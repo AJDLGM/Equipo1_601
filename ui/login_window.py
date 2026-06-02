@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog, filedialog
@@ -8,28 +9,28 @@ from crypto.signature import sign_message, verify_signature, sign_file, verify_f
 from client.api_client import get_client
 from ui.admin_panel import open_admin_panel
 
-# ── Paleta de colores ────────────────────────────────────────
-BG       = "#F1F5F9"
+# ── Paleta Casa Monarca ──────────────────────────────────────
+BG       = "#F5F5F5"
 CARD     = "#FFFFFF"
-HDR_BG   = "#0F172A"
-HDR_FG   = "#F8FAFC"
-HDR_SUB  = "#94A3B8"
-PRIMARY  = "#2563EB"
-PRIMARY_H= "#1D4ED8"
+HDR_BG   = "#2D2D2D"
+HDR_FG   = "#FFFFFF"
+HDR_SUB  = "#CCCCCC"
+PRIMARY  = "#F55C00"
+PRIMARY_H= "#D44A00"
 DANGER   = "#DC2626"
 DANGER_H = "#B91C1C"
 SUCCESS  = "#16A34A"
 SUCCESS_H= "#15803D"
-NEUTRAL  = "#475569"
-NEUTRAL_H= "#334155"
-TEXT     = "#0F172A"
-SUBTEXT  = "#64748B"
-BORDER   = "#E2E8F0"
-DIVIDER  = "#F8FAFC"
+NEUTRAL  = "#4A4A4A"
+NEUTRAL_H= "#3A3A3A"
+TEXT     = "#1A1A1A"
+SUBTEXT  = "#6B6B6B"
+BORDER   = "#E0E0E0"
+DIVIDER  = "#F0F0F0"
 
 ROLE_BADGE = {
-    "admin":       ("#EDE9FE", "#6D28D9"),
-    "coordinador": ("#DBEAFE", "#1D4ED8"),
+    "admin":       ("#FEE8D5", "#C45813"),
+    "coordinador": ("#FDDCE8", "#B01848"),
     "operativo":   ("#DCFCE7", "#15803D"),
     "externo":     ("#FEF3C7", "#B45309"),
 }
@@ -104,17 +105,60 @@ def _card(parent, title=None):
     return body
 
 
-# ── Sincronizacion de claves locales ─────────────────────────
+# ── Conversión de zona horaria → Ciudad de México ────────────
+
+def _to_cdmx(ts_str, fmt="%Y-%m-%d %H:%M"):
+    """Convierte un timestamp UTC (ISO o 'YYYY-MM-DD HH:MM:SS') a hora CDMX."""
+    from datetime import datetime, timezone
+    try:
+        try:
+            from zoneinfo import ZoneInfo
+        except ImportError:
+            from backports.zoneinfo import ZoneInfo
+        ts = ts_str.strip().replace("T", " ")[:19]
+        dt_utc = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        return dt_utc.astimezone(ZoneInfo("America/Mexico_City")).strftime(fmt)
+    except Exception:
+        return ts_str[:16]
+
+
+# ── Logo (embebido en base64 para funcionar en el bundle) ────
+
+def _load_logo(max_width=300, max_height=120):
+    import base64, io
+    from ui.logo_data import LOGO_PNG_B64
+
+    data = base64.b64decode(LOGO_PNG_B64)
+
+    # Intentar con PIL (mejor calidad de redimensionado)
+    try:
+        from PIL import Image, ImageTk
+        img = Image.open(io.BytesIO(data))
+        img.thumbnail((max_width, max_height), Image.LANCZOS)
+        return ImageTk.PhotoImage(img)
+    except Exception:
+        pass
+
+    # Fallback: tk.PhotoImage nativo (solo funciona con PNG nativo en Tk 8.6+)
+    try:
+        raw = tk.PhotoImage(data=LOGO_PNG_B64)
+        fx = max(1, raw.width()  // max_width)
+        fy = max(1, raw.height() // max_height)
+        factor = max(fx, fy)
+        return raw.subsample(factor) if factor > 1 else raw
+    except Exception:
+        return None
+
+
+# ── Sincronización de claves locales ─────────────────────────
 
 def _has_local_keys(username):
-    """Verifica si el usuario ya tiene sus claves descargadas localmente."""
     from config.paths import USERS_DIR
     priv = os.path.join(USERS_DIR, username, "keys", f"{username}_private.pem")
     return os.path.exists(priv)
 
 
 def _sync_local_keys(username, dirs, api):
-    """Descarga claves y certificado del servidor al cache local."""
     priv = os.path.join(dirs["keys"], f"{username}_private.pem")
     pub  = os.path.join(dirs["keys"], f"{username}_public.pem")
     cert = os.path.join(dirs["certs"], f"{username}_cert.json")
@@ -146,7 +190,7 @@ def start_app():
         user     = entry_user.get().strip()
         password = entry_pass.get()
         if not user or not password:
-            messagebox.showwarning("Campos vacios",
+            messagebox.showwarning("Campos vacíos",
                                    "Ingresa usuario y contraseña.", parent=root)
             return
         success, role = api.login(user, password)
@@ -155,27 +199,27 @@ def start_app():
         elif role == "pending":
             messagebox.showwarning(
                 "Cuenta pendiente",
-                "Tu cuenta esta pendiente de aprobacion\n"
+                "Tu cuenta está pendiente de aprobación\n"
                 "por el administrador.", parent=root)
         else:
             messagebox.showerror(
                 "Acceso denegado",
                 "Usuario o contraseña incorrectos,\n"
-                "o la cuenta esta desactivada.", parent=root)
+                "o la cuenta está desactivada.", parent=root)
 
     def register():
         user     = entry_user.get().strip()
         password = entry_pass.get()
         if not user or not password:
-            messagebox.showwarning("Campos vacios",
+            messagebox.showwarning("Campos vacíos",
                                    "Ingresa usuario y contraseña.", parent=root)
             return
         if api.register(user, password):
             messagebox.showinfo(
                 "Solicitud enviada",
                 f"Tu cuenta '{user}' fue creada.\n\n"
-                "Esta pendiente de aprobacion por el administrador.\n"
-                "Podras iniciar sesion una vez que sea activada.", parent=root)
+                "Está pendiente de aprobación por el administrador.\n"
+                "Podrás iniciar sesión una vez que sea activada.", parent=root)
         else:
             messagebox.showerror("Error",
                                  "El nombre de usuario ya existe.", parent=root)
@@ -183,7 +227,7 @@ def start_app():
     def show_certificate(username):
         cert = api.get_cert(username)
         if not cert:
-            messagebox.showerror("Error", "No se encontro el certificado.", parent=root)
+            messagebox.showerror("Error", "No se encontró el certificado.", parent=root)
             return
         status = cert.get("status", "active").upper()
         reason = cert.get("revocation_reason", "—")
@@ -193,8 +237,8 @@ def start_app():
         messagebox.showinfo(
             "Certificado Digital",
             f"Usuario      : {cert['user']}\n"
-            f"Emitido      : {cert['issued_at'][:19]}\n"
-            f"Expira       : {cert['expires_at'][:19]}\n"
+            f"Emitido      : {_to_cdmx(cert['issued_at'])}\n"
+            f"Expira       : {_to_cdmx(cert['expires_at'])}\n"
             f"Estado       : {status}\n"
             f"Firmado por  : {signed_by}\n"
             f"Algoritmo    : {algorithm}\n"
@@ -206,10 +250,10 @@ def start_app():
         _pending_job = [None]
 
         dash = tk.Toplevel()
-        dash.title("Dashboard")
+        dash.title("Panel Principal — Casa Monarca")
         dash.configure(bg=BG)
         dash.resizable(False, False)
-        _center(dash, 500, 600)
+        _center(dash, 640, 640)
 
         # ── Header ──────────────────────────────────────────
         hdr = tk.Frame(dash, bg=HDR_BG, height=72)
@@ -220,11 +264,15 @@ def start_app():
                  font=(FONT, 13, "bold"), bg=HDR_BG, fg=HDR_FG
                  ).place(x=20, rely=0.28, anchor="w")
 
-        badge_bg, badge_fg = ROLE_BADGE.get(role, ("#E2E8F0", NEUTRAL))
+        badge_bg, badge_fg = ROLE_BADGE.get(role, ("#F5D8C5", NEUTRAL))
         tk.Label(hdr, text=f"  {role.upper()}  ",
                  font=(FONT, 8, "bold"), bg=badge_bg, fg=badge_fg,
                  padx=4, pady=2
                  ).place(x=20, rely=0.72, anchor="w")
+
+        tk.Label(hdr, text="Casa Monarca",
+                 font=(FONT, 8), bg=HDR_BG, fg=HDR_SUB
+                 ).place(relx=1.0, x=-20, rely=0.5, anchor="e")
 
         # ── Contenido scrollable ─────────────────────────────
         scroll_outer = tk.Frame(dash, bg=BG)
@@ -261,6 +309,27 @@ def start_app():
 
         content = inner
 
+        # ── Verificación de claves locales ───────────────────
+        def _check_keys(parent_window):
+            if _has_local_keys(username):
+                return True
+            from config.paths import get_user_dir as _get_dir
+            d = _get_user_dir(username)
+            _sync_local_keys(username, d, api)
+            if _has_local_keys(username):
+                return True
+            messagebox.showerror(
+                "Claves no encontradas",
+                "No se encontraron tus claves locales.\n"
+                "Descárgalas desde 'Descargar Certificado y Claves'.",
+                parent=parent_window,
+            )
+            return False
+
+        def _get_user_dir(uname):
+            from config.paths import get_user_dir as _gud
+            return _gud(uname)
+
         # CONSULTAR — todos los roles
         if has_permission(role, "consult"):
             sec = _card(content, "Identidad Digital")
@@ -281,7 +350,7 @@ def start_app():
 
                 if not api.verify_password(username, pwd):
                     messagebox.showerror("Contraseña incorrecta",
-                                         "La contraseña ingresada no es valida.", parent=dash)
+                                         "La contraseña ingresada no es válida.", parent=dash)
                     return
 
                 d = _get_dir(username)
@@ -331,7 +400,7 @@ def start_app():
             _file_frame = tk.Frame(sec_req, bg=CARD,
                                    highlightbackground=BORDER, highlightthickness=1)
             _file_frame.pack(fill="x", pady=(2, 8))
-            _file_lbl = tk.Label(_file_frame, text="Ningun archivo seleccionado",
+            _file_lbl = tk.Label(_file_frame, text="Ningún archivo seleccionado",
                                  font=(FONT, 9), bg=CARD, fg=SUBTEXT)
             _file_lbl.pack(side="left", padx=10, pady=6, fill="x", expand=True)
 
@@ -381,9 +450,9 @@ def start_app():
                     if ok:
                         messagebox.showinfo(
                             "Solicitud enviada",
-                            f"Documento enviado a '{op}' para revision.", parent=dash)
+                            f"Documento enviado a '{op}' para revisión.", parent=dash)
                         _sel_file[0] = None
-                        _file_lbl.config(text="Ningun archivo seleccionado", fg=SUBTEXT)
+                        _file_lbl.config(text="Ningún archivo seleccionado", fg=SUBTEXT)
                         _entry_notes.delete(0, tk.END)
                         _refresh_my()
                     else:
@@ -429,21 +498,21 @@ def start_app():
                 _my_store[0] = reqs
                 for r in reqs:
                     st   = _ST.get(r["status"], r["status"])
-                    date = r["created_at"][:10]
+                    date = _to_cdmx(r["created_at"], "%Y-%m-%d")
                     _my_lb.insert(
                         tk.END,
-                        f"  {r['document_name'][:28]:<30} {st:<28} {date}")
+                        f"  {r['document_name'][:22]:<24} {st:<26} {date}")
 
             def _dl_signed():
                 sel = _my_lb.curselection()
                 if not sel:
-                    messagebox.showwarning("Sin seleccion",
+                    messagebox.showwarning("Sin selección",
                                            "Selecciona una solicitud.", parent=dash)
                     return
                 req = _my_store[0][sel[0]]
                 if req["status"] != "completed":
                     messagebox.showinfo("No disponible",
-                                        "El documento aun no ha sido firmado.", parent=dash)
+                                        "El documento aún no ha sido firmado.", parent=dash)
                     return
                 name, data = api.download_signed_document(req["id"])
                 if not data:
@@ -472,33 +541,6 @@ def start_app():
         # EDITAR
         if has_permission(role, "edit"):
             sec = _card(content, "Firma Digital")
-
-            tk.Label(sec, text="Mensaje a firmar:",
-                     font=(FONT, 9), bg=CARD, fg=SUBTEXT).pack(anchor="w")
-            msg_wrap = tk.Frame(sec, bg=CARD,
-                                highlightbackground=BORDER, highlightthickness=1)
-            msg_wrap.pack(fill="x", pady=(2, 10))
-            entry_message = tk.Entry(
-                msg_wrap, relief="flat", font=(FONT, 10),
-                bg=CARD, fg=TEXT, bd=0, highlightthickness=0,
-            )
-            entry_message.pack(fill="x", padx=10, pady=7)
-
-            row = tk.Frame(sec, bg=CARD)
-            row.pack(fill="x")
-
-            def sign():
-                msg = entry_message.get()
-                if not msg:
-                    messagebox.showwarning("Campo vacio",
-                                           "Escribe un mensaje primero.", parent=dash)
-                    return
-                if not _check_keys(dash):
-                    return
-                sign_message(username, msg)
-                api.log_action("Firma de mensaje de texto")
-                messagebox.showinfo("Firmado",
-                                    "Mensaje firmado correctamente.", parent=dash)
 
             def sign_file_ui():
                 path = filedialog.askopenfilename(
@@ -532,8 +574,7 @@ def start_app():
                         parent=dash
                     )
 
-            _btn(row, "Firmar texto",   sign,         bg=PRIMARY).pack(side="left", padx=(0, 6), pady=2)
-            _btn(row, "Firmar archivo", sign_file_ui, bg=NEUTRAL).pack(side="left", pady=2)
+            _btn(sec, "Firmar archivo", sign_file_ui, bg=PRIMARY, full=True)
 
         # SOLICITUDES RECIBIDAS — operativo
         if role == "operativo":
@@ -563,15 +604,15 @@ def start_app():
                 reqs = api.get_incoming_signing_requests()
                 _op_store[0] = reqs
                 for r in reqs:
-                    date = r["created_at"][:10]
+                    date = _to_cdmx(r["created_at"], "%Y-%m-%d")
                     _op_lb.insert(
                         tk.END,
-                        f"  {r['requester']:<18} {r['document_name'][:26]:<28} {date}")
+                        f"  {r['requester']:<16} {r['document_name'][:24]:<26} {date}")
 
             def _forward():
                 sel = _op_lb.curselection()
                 if not sel:
-                    messagebox.showwarning("Sin seleccion",
+                    messagebox.showwarning("Sin selección",
                                            "Selecciona una solicitud.", parent=dash)
                     return
                 req = _op_store[0][sel[0]]
@@ -628,37 +669,7 @@ def start_app():
 
         # AUTORIZAR
         if has_permission(role, "authorize"):
-            sec = _card(content, "Verificacion de Firmas")
-
-            tk.Label(sec, text="Mensaje a verificar:",
-                     font=(FONT, 9), bg=CARD, fg=SUBTEXT).pack(anchor="w")
-            verify_wrap = tk.Frame(sec, bg=CARD,
-                                   highlightbackground=BORDER, highlightthickness=1)
-            verify_wrap.pack(fill="x", pady=(2, 10))
-            entry_verify_msg = tk.Entry(
-                verify_wrap, relief="flat", font=(FONT, 10),
-                bg=CARD, fg=TEXT, bd=0, highlightthickness=0,
-            )
-            entry_verify_msg.pack(fill="x", padx=10, pady=7)
-
-            row2 = tk.Frame(sec, bg=CARD)
-            row2.pack(fill="x")
-
-            def verify():
-                if not _check_keys(dash):
-                    return
-                msg = entry_verify_msg.get()
-                sig = filedialog.askopenfilename(
-                    parent=dash, filetypes=[("Firma", "*.sig")])
-                if not sig:
-                    return
-                if verify_signature(username, msg, sig):
-                    api.log_action(f"Verificacion de mensaje: firma valida | archivo:{os.path.basename(sig)}")
-                    messagebox.showinfo("Valida", "La firma es valida.", parent=dash)
-                else:
-                    api.log_action(f"Verificacion de mensaje: firma invalida | archivo:{os.path.basename(sig)}")
-                    messagebox.showerror("Invalida",
-                                         "La firma no es valida o fue alterada.", parent=dash)
+            sec = _card(content, "Verificación de Firmas")
 
             def verify_file_ui():
                 path = filedialog.askopenfilename(
@@ -674,13 +685,13 @@ def start_app():
                     return
                 ok, result = verify_file(path)
                 if ok:
-                    signed_at = result["signed_at"][:19].replace("T", " ")
+                    signed_at = _to_cdmx(result["signed_at"])
                     api.log_action(
-                        f"Verificacion de archivo: firma valida | archivo:{os.path.basename(path)} | firmante:{result['signer']}"
+                        f"Verificación de archivo: firma válida | archivo:{os.path.basename(path)} | firmante:{result['signer']}"
                     )
                     messagebox.showinfo(
-                        "Firma valida",
-                        f"El documento es autentico e integro.\n\n"
+                        "Firma válida",
+                        f"El documento es auténtico e íntegro.\n\n"
                         f"Firmante     : {result['signer']}\n"
                         f"Archivo      : {result['original_filename']}\n"
                         f"Firmado el   : {signed_at}\n"
@@ -689,11 +700,10 @@ def start_app():
                         parent=dash
                     )
                 else:
-                    api.log_action(f"Verificacion de archivo: firma invalida | archivo:{os.path.basename(path)}")
-                    messagebox.showerror("Firma invalida", result, parent=dash)
+                    api.log_action(f"Verificación de archivo: firma inválida | archivo:{os.path.basename(path)}")
+                    messagebox.showerror("Firma inválida", result, parent=dash)
 
-            _btn(row2, "Verificar texto",   verify,          bg=SUCCESS).pack(side="left", padx=(0, 6), pady=2)
-            _btn(row2, "Verificar archivo", verify_file_ui,  bg=SUCCESS).pack(side="left", pady=2)
+            _btn(sec, "Verificar archivo", verify_file_ui, bg=SUCCESS, full=True)
 
         # DOCUMENTOS PENDIENTES DE FIRMA — coordinador
         if role == "coordinador":
@@ -723,15 +733,15 @@ def start_app():
                 reqs = api.get_incoming_signing_requests()
                 _cd_store[0] = reqs
                 for r in reqs:
-                    date = r["created_at"][:16].replace("T", " ")
+                    date = _to_cdmx(r["created_at"])
                     _cd_lb.insert(
                         tk.END,
-                        f"  {r['requester']:<16} {r['document_name'][:24]:<26} {date}")
+                        f"  {r['requester']:<14} {r['document_name'][:22]:<24} {date}")
 
             def _sign_doc():
                 sel = _cd_lb.curselection()
                 if not sel:
-                    messagebox.showwarning("Sin seleccion",
+                    messagebox.showwarning("Sin selección",
                                            "Selecciona un documento.", parent=dash)
                     return
                 req = _cd_store[0][sel[0]]
@@ -783,7 +793,7 @@ def start_app():
 
         # ADMIN — Solicitudes pendientes
         if role == "admin":
-            sec_pending = _card(content, "Solicitudes de Activacion Pendientes")
+            sec_pending = _card(content, "Solicitudes de Activación Pendientes")
 
             pending_frame = tk.Frame(sec_pending, bg=CARD,
                                      highlightbackground=BORDER, highlightthickness=1)
@@ -823,7 +833,7 @@ def start_app():
             def do_approve():
                 sel = pending_lb.curselection()
                 if not sel:
-                    messagebox.showwarning("Sin seleccion",
+                    messagebox.showwarning("Sin selección",
                                            "Selecciona una cuenta para aprobar.", parent=dash)
                     return
                 uname = pending_lb.get(sel[0]).strip().split()[0]
@@ -929,7 +939,7 @@ def start_app():
                     rows = api.get_pending_sign_requests()
                     for r in rows:
                         _requests.append(r)
-                        fecha = r["requested_at"][:19].replace("T", " ")
+                        fecha = _to_cdmx(r["requested_at"])
                         lb_sf.insert(
                             tk.END,
                             f"  {fecha}   {r['requester']:<16}  {r['filename']}"
@@ -945,7 +955,7 @@ def start_app():
                 def firmar_solicitud():
                     sel = lb_sf.curselection()
                     if not sel:
-                        messagebox.showwarning("Sin seleccion",
+                        messagebox.showwarning("Sin selección",
                                                "Selecciona una solicitud de la lista.", parent=panel)
                         return
                     req = _requests[sel[0]]
@@ -958,7 +968,6 @@ def start_app():
                                              "No se pudo descargar el archivo.", parent=panel)
                         return
 
-                    # Guardar temporalmente y firmar
                     import tempfile
                     ext = os.path.splitext(fname)[1]
                     with tempfile.NamedTemporaryFile(delete=False, suffix=ext, prefix="solicitud_") as tmp:
@@ -975,9 +984,8 @@ def start_app():
 
                     os.unlink(tmp_path)
 
-                    # Mover el firmado a la carpeta del usuario
                     dest_dir = filedialog.askdirectory(
-                        title="Selecciona donde guardar el documento firmado", parent=panel)
+                        title="Selecciona dónde guardar el documento firmado", parent=panel)
                     if dest_dir:
                         import shutil
                         final_name = os.path.splitext(fname)[0] + "_firmado" + ext
@@ -1008,7 +1016,7 @@ def start_app():
 
         # ADMIN — Logs y panel
         if role == "admin":
-            sec = _card(content, "Administracion del Sistema")
+            sec = _card(content, "Administración del Sistema")
             row3 = tk.Frame(sec, bg=CARD)
             row3.pack(fill="x")
 
@@ -1041,7 +1049,7 @@ def start_app():
                 sb.config(command=txt.yview)
 
                 for user, action, timestamp in api.get_logs():
-                    txt.insert(tk.END, f"{timestamp[:19]}  |  {user:<18}|  {action}\n")
+                    txt.insert(tk.END, f"{_to_cdmx(timestamp)}  |  {user:<18}|  {action}\n")
                 txt.config(state="disabled")
 
             _btn(row3, "Gestionar Identidades",
@@ -1058,39 +1066,59 @@ def start_app():
                 dash.after_cancel(_pending_job[0])
             dash.destroy()
 
-        _btn(content, "Cerrar sesion", logout,
+        _btn(content, "Cerrar sesión", logout,
              bg=DANGER, full=True, pady=10)
 
     # ── Ventana de login ─────────────────────────────────────
     root = tk.Tk()
-    root.title("Sistema de Identidad Digital")
+    root.title("Casa Monarca — Sistema de Identidad Digital")
     root.configure(bg=BG)
     root.resizable(False, False)
-    _center(root, 420, 500)
+    _center(root, 420, 560)
 
-    hdr = tk.Frame(root, bg=HDR_BG, height=90)
-    hdr.pack(fill="x")
-    hdr.pack_propagate(False)
-    tk.Label(hdr, text="Sistema de Gestión de Identidades",
-             font=(FONT, 15, "bold"), bg=HDR_BG, fg=HDR_FG
-             ).place(relx=0.5, rely=0.38, anchor="center")
-    tk.Label(hdr, text=" ",
-             font=(FONT, 9), bg=HDR_BG, fg=HDR_SUB
-             ).place(relx=0.5, rely=0.72, anchor="center")
+    # ── Área del logo ─────────────────────────────────────────
+    logo_frame = tk.Frame(root, bg=CARD, height=150)
+    logo_frame.pack(fill="x")
+    logo_frame.pack_propagate(False)
 
+    _logo_img = _load_logo(300, 130)
+    if _logo_img:
+        logo_lbl = tk.Label(logo_frame, image=_logo_img, bg=CARD)
+        logo_lbl.place(relx=0.5, rely=0.5, anchor="center")
+        logo_lbl._logo_img = _logo_img
+    else:
+        tk.Label(logo_frame,
+                 text="CASA MONARCA",
+                 font=(FONT, 20, "bold"), bg=CARD, fg=PRIMARY
+                 ).place(relx=0.5, rely=0.45, anchor="center")
+        tk.Label(logo_frame,
+                 text="Ayuda Humanitaria al Migrante, A.B.P.",
+                 font=(FONT, 8), bg=CARD, fg=SUBTEXT
+                 ).place(relx=0.5, rely=0.78, anchor="center")
+
+    # ── Barra de título del sistema ───────────────────────────
+    brand = tk.Frame(root, bg=PRIMARY, height=40)
+    brand.pack(fill="x")
+    brand.pack_propagate(False)
+    tk.Label(brand,
+             text="Sistema de Gestión de Identidades",
+             font=(FONT, 10, "bold"), bg=PRIMARY, fg="white"
+             ).place(relx=0.5, rely=0.5, anchor="center")
+
+    # ── Formulario de acceso ──────────────────────────────────
     outer = tk.Frame(root, bg=BG)
-    outer.pack(fill="both", expand=True, padx=40, pady=28)
+    outer.pack(fill="both", expand=True, padx=40, pady=24)
 
     card = tk.Frame(outer, bg=CARD,
                     highlightbackground=BORDER, highlightthickness=1)
     card.pack(fill="both", expand=True)
 
     inner = tk.Frame(card, bg=CARD)
-    inner.pack(fill="both", expand=True, padx=28, pady=24)
+    inner.pack(fill="both", expand=True, padx=28, pady=22)
 
     tk.Label(inner, text="Iniciar sesión",
              font=(FONT, 14, "bold"), bg=CARD, fg=TEXT
-             ).pack(anchor="w", pady=(0, 16))
+             ).pack(anchor="w", pady=(0, 14))
 
     entry_user = _field(inner, "Usuario")
     entry_pass = _field(inner, "Contraseña", show="*")

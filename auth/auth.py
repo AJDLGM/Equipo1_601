@@ -54,7 +54,7 @@ def register_user(username, password, role="user", pending=False, signed_by=None
 
             create_certificate(username, signed_by=signer, admin_private_key_pem=signer_private_key)
 
-        log_action(username, "REGISTER" if not pending else "REGISTER_PENDING")
+        log_action(username, "Cuenta registrada" if not pending else "Solicitud de registro pendiente de aprobación")
 
         return True
 
@@ -84,20 +84,20 @@ def login_user(username, password):
         stored_hash, salt, role, status = result
 
         if status == "pending":
-            log_action(username, "LOGIN BLOCKED (cuenta pendiente de aprobacion)")
+            log_action(username, "Inicio de sesión bloqueado — cuenta pendiente de aprobación")
             return False, "pending"
 
         if status != "active":
-            log_action(username, "LOGIN BLOCKED (cuenta inactiva o revocada)")
+            log_action(username, "Inicio de sesión bloqueado — cuenta inactiva o revocada")
             return False, None
 
         if verify_password(password, salt, stored_hash):
 
-            log_action(username, "LOGIN SUCCESS")
+            log_action(username, "Inicio de sesión exitoso")
 
             return True, role
 
-    log_action(username, "LOGIN FAILED")
+    log_action(username, "Inicio de sesión fallido — credenciales incorrectas")
 
     return False, None
 

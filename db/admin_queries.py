@@ -53,7 +53,7 @@ def revoke_identity(username, reason, revoked_by):
     _update_cert_status(username, "revoked", reason)
 
     from db.logs import log_action
-    log_action(revoked_by, f"REVOKE_CERT:{username} | motivo:{reason}")
+    log_action(revoked_by, f"Certificado revocado: {username} | motivo: {reason}")
 
 
 def deactivate_user(username, admin_user):
@@ -73,7 +73,7 @@ def deactivate_user(username, admin_user):
     _update_cert_status(username, "inactive", "Baja administrativa")
 
     from db.logs import log_action
-    log_action(admin_user, f"DEACTIVATE_USER:{username}")
+    log_action(admin_user, f"Baja de identidad: {username}")
 
 
 def get_revoked_certs():
@@ -134,7 +134,7 @@ def approve_user(username, admin_username, role="user"):
     create_certificate(username, signed_by=admin_username, admin_private_key_pem=admin_private_key)
 
     from db.logs import log_action
-    log_action(admin_username, f"APPROVE_USER:{username}")
+    log_action(admin_username, f"Cuenta aprobada: {username}")
 
 
 def get_logs():

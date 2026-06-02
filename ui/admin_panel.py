@@ -3,22 +3,37 @@ from tkinter import ttk, messagebox
 
 from client.api_client import get_client
 
-# ── Paleta (misma que login_window) ─────────────────────────
-BG       = "#F1F5F9"
+# ── Paleta Casa Monarca (igual que login_window) ─────────────
+BG       = "#F5F5F5"
 CARD     = "#FFFFFF"
-HDR_BG   = "#0F172A"
-HDR_FG   = "#F8FAFC"
-HDR_SUB  = "#94A3B8"
-PRIMARY  = "#2563EB"
+HDR_BG   = "#2D2D2D"
+HDR_FG   = "#FFFFFF"
+HDR_SUB  = "#CCCCCC"
+PRIMARY  = "#F55C00"
 DANGER   = "#DC2626"
 SUCCESS  = "#16A34A"
-NEUTRAL  = "#475569"
-TEXT     = "#0F172A"
-SUBTEXT  = "#64748B"
-BORDER   = "#E2E8F0"
-DIVIDER  = "#F8FAFC"
+NEUTRAL  = "#4A4A4A"
+TEXT     = "#1A1A1A"
+SUBTEXT  = "#6B6B6B"
+BORDER   = "#E0E0E0"
+DIVIDER  = "#F0F0F0"
 
 FONT = "Segoe UI"
+
+
+def _to_cdmx(ts_str, fmt="%Y-%m-%d %H:%M"):
+    """Convierte un timestamp UTC a hora de la Ciudad de México."""
+    from datetime import datetime, timezone
+    try:
+        try:
+            from zoneinfo import ZoneInfo
+        except ImportError:
+            from backports.zoneinfo import ZoneInfo
+        ts = ts_str.strip().replace("T", " ")[:19]
+        dt_utc = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        return dt_utc.astimezone(ZoneInfo("America/Mexico_City")).strftime(fmt)
+    except Exception:
+        return ts_str[:16]
 
 
 # ── Helpers ──────────────────────────────────────────────────
@@ -102,7 +117,7 @@ def _userlist(parent, height=6):
 def open_admin_panel(admin_username):
 
     win = tk.Toplevel()
-    win.title("Panel de Administrador")
+    win.title("Panel de Administrador — Casa Monarca")
     win.configure(bg=BG)
     win.resizable(False, False)
     _center(win, 680, 580)
@@ -113,7 +128,7 @@ def open_admin_panel(admin_username):
     tk.Label(hdr, text="Panel de Administrador",
              font=(FONT, 14, "bold"), bg=HDR_BG, fg=HDR_FG
              ).place(relx=0.5, rely=0.38, anchor="center")
-    tk.Label(hdr, text=f"Sesion: {admin_username}",
+    tk.Label(hdr, text=f"Sesión: {admin_username}",
              font=(FONT, 8), bg=HDR_BG, fg=HDR_SUB
              ).place(relx=0.5, rely=0.74, anchor="center")
 
@@ -124,7 +139,7 @@ def open_admin_panel(admin_username):
     style.configure("Admin.TNotebook.Tab",
                     font=(FONT, 10, "bold"),
                     padding=[18, 8],
-                    background="#E2E8F0",
+                    background="#E0E0E0",
                     foreground=SUBTEXT)
     style.map("Admin.TNotebook.Tab",
               background=[("selected", CARD)],
@@ -138,7 +153,7 @@ def open_admin_panel(admin_username):
     tab_baja = tk.Frame(nb, bg=BG)
 
     nb.add(tab_alta, text="  Alta  ")
-    nb.add(tab_rev,  text="  Revocacion  ")
+    nb.add(tab_rev,  text="  Revocación  ")
     nb.add(tab_baja, text="  Baja  ")
 
     rev_refresher = [None]
@@ -201,7 +216,7 @@ def _build_alta(parent, admin_username, on_register=None):
     )
     role_cb.pack(fill="x", padx=6, pady=6)
 
-    lbl("Contrasena",           2, 0)
+    lbl("Contraseña",           2, 0)
     lbl("Confirmar contraseña", 2, 1)
     e_pass  = entry_grid(2, 0, show="*")
     e_pass2 = entry_grid(2, 1, show="*")
@@ -225,7 +240,7 @@ def _build_alta(parent, admin_username, on_register=None):
             msg_var.set("La contraseña debe tener al menos 6 caracteres.")
             return
         if password != password2:
-            msg_var.set("Las contrasenias no coinciden.")
+            msg_var.set("Las contraseñas no coinciden.")
             return
 
         if api.admin_create_user(username, password, role):
@@ -245,7 +260,7 @@ def _build_alta(parent, admin_username, on_register=None):
     btn.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(4, 0))
 
 
-# ── RF02: Revocacion de identidad ────────────────────────────
+# ── RF02: Revocación de identidad ────────────────────────────
 
 def _build_revocacion(parent, admin_username, on_revoke=None):
     api = get_client()
@@ -273,23 +288,23 @@ def _build_revocacion(parent, admin_username, on_revoke=None):
 
     refresh_users()
 
-    e_reason = _field_row(top_body, "Motivo de revocacion:")
+    e_reason = _field_row(top_body, "Motivo de revocación:")
 
     def do_revoke():
         sel = user_list.curselection()
         if not sel:
-            messagebox.showwarning("Sin seleccion",
+            messagebox.showwarning("Sin selección",
                                    "Selecciona un usuario.", parent=top_card.winfo_toplevel())
             return
         username = user_list.get(sel[0]).strip().split()[0]
         reason   = e_reason.get().strip()
         if not reason:
             messagebox.showwarning("Motivo requerido",
-                                   "Ingresa el motivo de revocacion.", parent=top_card.winfo_toplevel())
+                                   "Ingresa el motivo de revocación.", parent=top_card.winfo_toplevel())
             return
         if messagebox.askyesno(
-            "Confirmar revocacion",
-            f"Revocar el certificado de '{username}'?\n\nMotivo: {reason}",
+            "Confirmar revocación",
+            f"¿Revocar el certificado de '{username}'?\n\nMotivo: {reason}",
             parent=top_card.winfo_toplevel(),
         ):
             api.revoke_identity(username, reason, admin_username)
@@ -311,7 +326,7 @@ def _build_revocacion(parent, admin_username, on_revoke=None):
     bot_card = tk.Frame(outer, bg=CARD,
                         highlightbackground=BORDER, highlightthickness=1)
     bot_card.pack(fill="both", expand=True)
-    _section_header(bot_card, "Lista de Revocacion (CRL)")
+    _section_header(bot_card, "Lista de Revocación (CRL)")
 
     bot_body = tk.Frame(bot_card, bg=CARD)
     bot_body.pack(fill="both", expand=True, padx=12, pady=10)
@@ -324,7 +339,7 @@ def _build_revocacion(parent, admin_username, on_revoke=None):
     style.configure("CRL.Treeview.Heading",
                     font=(FONT, 9, "bold"),
                     background=DIVIDER, foreground=SUBTEXT, relief="flat")
-    style.map("CRL.Treeview", background=[("selected", "#DBEAFE")])
+    style.map("CRL.Treeview", background=[("selected", "#FEE8D5")])
 
     cols = ("Usuario", "Motivo", "Fecha (UTC)", "Revocado por")
     tree = ttk.Treeview(bot_body, columns=cols, show="headings",
@@ -343,7 +358,7 @@ def _build_revocacion(parent, admin_username, on_revoke=None):
             tree.delete(row)
         for uname, reason, revoked_at, revoked_by in api.get_revoked_certs():
             tree.insert("", "end",
-                        values=(uname, reason, revoked_at[:19], revoked_by))
+                        values=(uname, reason, _to_cdmx(revoked_at), revoked_by))
 
     refresh_crl()
 
@@ -382,8 +397,8 @@ def _build_baja(parent, admin_username, on_deactivate=None):
     warn.pack(fill="x", pady=(0, 14))
     tk.Label(
         warn,
-        text="  Esta accion desactiva permanentemente la identidad y revoca su certificado.\n"
-             "  El registro se conserva en la base de datos con fines de auditoria.",
+        text="  Esta acción desactiva permanentemente la identidad y revoca su certificado.\n"
+             "  El registro se conserva en la base de datos con fines de auditoría.",
         font=(FONT, 9), bg="#FEF2F2", fg="#991B1B",
         justify="left",
     ).pack(anchor="w", padx=8, pady=8)
@@ -407,15 +422,15 @@ def _build_baja(parent, admin_username, on_deactivate=None):
     def do_deactivate():
         sel = user_list.curselection()
         if not sel:
-            messagebox.showwarning("Sin seleccion",
+            messagebox.showwarning("Sin selección",
                                    "Selecciona un usuario.", parent=card.winfo_toplevel())
             return
         username = user_list.get(sel[0]).strip().split()[0]
         if messagebox.askyesno(
             "Confirmar baja",
-            f"Dar de baja permanentemente a '{username}'?\n\n"
-            "Se bloqueara el acceso y se revocara el certificado.\n"
-            "Esta accion no se puede deshacer.",
+            f"¿Dar de baja permanentemente a '{username}'?\n\n"
+            "Se bloqueará el acceso y se revocará el certificado.\n"
+            "Esta acción no se puede deshacer.",
             parent=card.winfo_toplevel(),
             icon="warning",
         ):

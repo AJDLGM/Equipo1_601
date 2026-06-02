@@ -234,7 +234,7 @@ def create_signing_request():
             notes=notes,
         )
         log_action(sess["username"],
-                   f"SIGNING_REQUEST_CREATED:{req_id}|operativo:{operativo}")
+                   f"Solicitud de firma enviada — ID: {req_id} | operativo: {operativo}")
         return jsonify({"ok": True, "id": req_id})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -301,7 +301,7 @@ def forward_signing_request(req_id):
     from db.signing_requests import forward_to_coordinador
     forward_to_coordinador(req_id, data.get("coordinador", ""))
     log_action(sess["username"],
-               f"SIGNING_FORWARD:{req_id}|coordinador:{data.get('coordinador','')}")
+               f"Solicitud de firma canalizada — ID: {req_id} | coordinador: {data.get('coordinador', '')}")
     return jsonify({"ok": True})
 
 
@@ -318,7 +318,7 @@ def complete_signing_request(req_id):
         signed_name  = signed_file.filename or "documento_firmado"
         from db.signing_requests import complete_signing_request as _complete
         _complete(req_id, signed_name, signed_bytes)
-        log_action(sess["username"], f"SIGNING_COMPLETE:{req_id}")
+        log_action(sess["username"], f"Documento firmado — ID: {req_id}")
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

@@ -1,12 +1,19 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
+
+pil_imports = collect_submodules('PIL')
+pil_datas   = collect_data_files('PIL')
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('assets/logo.png', 'assets'), *pil_datas],
     hiddenimports=[
+        *pil_imports,
+        'PIL', 'PIL.Image', 'PIL.ImageTk', 'PIL._imaging',
+        'zoneinfo', 'tzdata',
         'docx', 'docx.oxml', 'docx.oxml.ns', 'docx.parts', 'docx.shared',
         'docx.enum.text', 'docx.enum.table', 'lxml', 'lxml.etree',
         'pypdf', 'pypdf.generic', 'pypdf.filters',

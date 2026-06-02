@@ -33,9 +33,9 @@ def _ask_server_url(current_url=""):
             break
 
         retry = messagebox.askretrycancel(
-            "Sin conexion",
+            "Sin conexión",
             f"No se pudo conectar a:\n{url}\n\n"
-            "Verifica que el servidor este activo y la URL sea correcta.",
+            "Verifica que el servidor esté activo y la URL sea correcta.",
             parent=root,
         )
         if not retry:
