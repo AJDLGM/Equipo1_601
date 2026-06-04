@@ -251,6 +251,7 @@ def start_app():
                     api.token = None
                     return
             _sync_cert_local(user, api)
+            root.withdraw()
             open_dashboard(user, role)
         elif role == "pending":
             messagebox.showwarning(
@@ -1181,6 +1182,9 @@ def start_app():
             if _pending_job[0]:
                 dash.after_cancel(_pending_job[0])
             dash.destroy()
+            root.deiconify()
+
+        dash.protocol("WM_DELETE_WINDOW", logout)
 
         _btn(content, "Cerrar sesión", logout,
              bg=DANGER, full=True, pady=10)
