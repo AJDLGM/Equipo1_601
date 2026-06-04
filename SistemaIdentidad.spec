@@ -14,6 +14,8 @@ a = Analysis(
         *pil_imports,
         'PIL', 'PIL.Image', 'PIL.ImageTk', 'PIL._imaging',
         'zoneinfo', 'tzdata',
+        'requests', 'requests.adapters', 'requests.auth', 'requests.models',
+        'urllib3', 'certifi', 'charset_normalizer', 'idna',
         'docx', 'docx.oxml', 'docx.oxml.ns', 'docx.parts', 'docx.shared',
         'docx.enum.text', 'docx.enum.table', 'lxml', 'lxml.etree',
         'pypdf', 'pypdf.generic', 'pypdf.filters',
