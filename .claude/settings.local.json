@@ -11,7 +11,8 @@
       "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\jeam8\\\\OneDrive\\\\Escritorio\\\\Equipo1_601\\\\crypto\" -Recurse | Select-Object FullName | ForEach-Object { $_.FullName.Replace\\(\"C:\\\\Users\\\\jeam8\\\\OneDrive\\\\Escritorio\\\\Equipo1_601\\\\\", \"\"\\) })",
       "Bash(Get-ChildItem -Recurse -Depth 3 -ErrorAction SilentlyContinue)",
       "Bash(Select-Object FullName, PSIsContainer)",
-      "Bash(pip install *)"
+      "Bash(pip install *)",
+      "WebFetch(domain:casamonarca.org.mx)"
     ]
   }
 }
