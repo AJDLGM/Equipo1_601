@@ -130,12 +130,14 @@ class APIClient:
         return [(u["username"], u["role"], u["status"]) for u in result]
 
     def revoke_identity(self, username, reason, admin_username):
-        _, err = self._req("POST", f"/users/{username}/revoke",
+        from urllib.parse import quote
+        _, err = self._req("POST", f"/users/{quote(username, safe='')}/revoke",
                            {"reason": reason, "admin_username": admin_username})
         return err is None
 
     def deactivate_user(self, username, admin_username):
-        _, err = self._req("POST", f"/users/{username}/deactivate",
+        from urllib.parse import quote
+        _, err = self._req("POST", f"/users/{quote(username, safe='')}/deactivate",
                            {"admin_username": admin_username})
         return err is None
 
@@ -157,15 +159,18 @@ class APIClient:
         return err is None
 
     def get_cert(self, username):
-        result, err = self._req("GET", f"/users/{username}/cert")
+        from urllib.parse import quote
+        result, err = self._req("GET", f"/users/{quote(username, safe='')}/cert")
         return None if err else result
 
     def get_private_key(self, username):
-        result, err = self._req("GET", f"/users/{username}/keys/private", raw=True)
+        from urllib.parse import quote
+        result, err = self._req("GET", f"/users/{quote(username, safe='')}/keys/private", raw=True)
         return None if err else result
 
     def get_public_key(self, username):
-        result, err = self._req("GET", f"/users/{username}/keys/public", raw=True)
+        from urllib.parse import quote
+        result, err = self._req("GET", f"/users/{quote(username, safe='')}/keys/public", raw=True)
         return None if err else result
 
     def get_revoked_certs(self):
