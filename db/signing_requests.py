@@ -189,3 +189,11 @@ def get_route_step(request_id):
     row = cur.fetchone()
     con.close()
     return row[0] if row else 0
+
+
+def delete_signing_request(request_id):
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute("DELETE FROM signing_requests WHERE id=?", (request_id,))
+    con.commit()
+    con.close()

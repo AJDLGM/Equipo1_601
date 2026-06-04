@@ -326,6 +326,17 @@ def download_signing_document(req_id):
     })
 
 
+@app.route("/signing-requests/<int:req_id>", methods=["DELETE"])
+def delete_signing_request(req_id):
+    sess = _session()
+    if not sess:
+        return jsonify({"error": "No autenticado"}), 401
+    from db.signing_requests import delete_signing_request as _delete
+    _delete(req_id)
+    log_action(sess["username"], f"Solicitud de firma eliminada — ID: {req_id}")
+    return jsonify({"ok": True})
+
+
 @app.route("/signing-requests/<int:req_id>/forward", methods=["POST"])
 def forward_signing_request(req_id):
     sess = _session()

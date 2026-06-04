@@ -178,6 +178,10 @@ class APIClient:
 
     # ── Solicitudes de firma ──────────────────────────────────
 
+    def delete_signing_request(self, req_id):
+        _, err = self._req("DELETE", f"/signing-requests/{req_id}")
+        return err is None
+
     def create_signing_request(self, document_name, document_bytes, operativo, notes=""):
         result, err = self._req_multipart(
             "POST", "/signing-requests",

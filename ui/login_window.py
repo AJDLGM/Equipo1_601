@@ -538,8 +538,8 @@ def start_app():
             _btn(_row_my, "Descargar firmado", _dl_signed, bg=SUCCESS
                  ).pack(side="left", pady=2)
 
-        # EDITAR
-        if has_permission(role, "edit"):
+        # EDITAR — solo coordinadores y admin pueden firmar archivos directamente
+        if has_permission(role, "edit") and role != "operativo":
             sec = _card(content, "Firma Digital")
 
             def sign_file_ui():
@@ -682,6 +682,26 @@ def start_app():
                      ).pack(fill="x", padx=20)
                 fwd.wait_window()
 
+            def _delete_op():
+                sel = _op_lb.curselection()
+                if not sel:
+                    messagebox.showwarning("Sin selección",
+                                           "Selecciona una solicitud para eliminar.", parent=dash)
+                    return
+                req = _op_store[0][sel[0]]
+                if messagebox.askyesno(
+                    "Confirmar eliminación",
+                    f"¿Eliminar la solicitud de '{req['requester']}' "
+                    f"({req['document_name']})?\n\n"
+                    "Esta acción no se puede deshacer.",
+                    parent=dash, icon="warning",
+                ):
+                    if api.delete_signing_request(req["id"]):
+                        _refresh_op()
+                    else:
+                        messagebox.showerror("Error",
+                                             "No se pudo eliminar la solicitud.", parent=dash)
+
             _refresh_op()
 
             _row_op = tk.Frame(sec_op, bg=CARD)
@@ -691,6 +711,8 @@ def start_app():
             _btn(_row_op, "Enviar a ruta de firmas", _forward_route, bg=PRIMARY
                  ).pack(side="left", padx=(0, 6), pady=2)
             _btn(_row_op, "Canalizar manualmente", _forward_manual, bg=NEUTRAL
+                 ).pack(side="left", padx=(0, 6), pady=2)
+            _btn(_row_op, "Eliminar solicitud", _delete_op, bg=DANGER
                  ).pack(side="left", pady=2)
 
         # AUTORIZAR
