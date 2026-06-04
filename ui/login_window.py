@@ -604,10 +604,10 @@ def start_app():
                 reqs = api.get_incoming_signing_requests()
                 _op_store[0] = reqs
                 for r in reqs:
-                    date = _to_cdmx(r["created_at"], "%Y-%m-%d")
+                    date = _to_cdmx(r["created_at"])
                     _op_lb.insert(
                         tk.END,
-                        f"  {r['requester']:<16} {r['document_name'][:24]:<26} {date}")
+                        f"  {r['requester']:<14} {r['document_name'][:20]:<22} {date}")
 
             def _forward_route():
                 """Envía la solicitud al primer coordinador de la ruta de firmas."""
