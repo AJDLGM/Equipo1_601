@@ -300,7 +300,7 @@ def _build_revocacion(parent, admin_username, on_revoke=None):
             messagebox.showwarning("Sin selección",
                                    "Selecciona un usuario.", parent=top_card.winfo_toplevel())
             return
-        username = user_list.get(sel[0]).strip().split()[0]
+        username = user_list.get(sel[0]).strip().rsplit("[", 1)[0].strip()
         reason   = e_reason.get().strip()
         if not reason:
             messagebox.showwarning("Motivo requerido",
@@ -429,7 +429,7 @@ def _build_baja(parent, admin_username, on_deactivate=None):
             messagebox.showwarning("Sin selección",
                                    "Selecciona un usuario.", parent=card.winfo_toplevel())
             return
-        username = user_list.get(sel[0]).strip().split()[0]
+        username = user_list.get(sel[0]).strip().rsplit("[", 1)[0].strip()
         if messagebox.askyesno(
             "Confirmar baja",
             f"¿Dar de baja permanentemente a '{username}'?\n\n"

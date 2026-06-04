@@ -21,8 +21,8 @@ def create_certificate(username, signed_by=None, admin_private_key_pem=None):
 
     cert = {
         "user":                username,
-        "issued_at":           str(datetime.now()),
-        "expires_at":          str(datetime.now() + timedelta(days=365)),
+        "issued_at":           datetime.utcnow().isoformat() + "Z",
+        "expires_at":          (datetime.utcnow() + timedelta(days=365)).isoformat() + "Z",
         "status":              "active",
         "signed_by":           signed_by or username,
         "public_key":          public_key_str,

@@ -176,7 +176,7 @@ def start_app():
         """Diálogo obligatorio de descarga de clave privada. No puede cerrarse sin descargar."""
         downloaded = [False]
 
-        dialog = tk.Toplevel()
+        dialog = tk.Toplevel(root)
         dialog.title("Descarga de Clave Privada — Acción Requerida")
         dialog.configure(bg=CARD)
         dialog.resizable(False, False)

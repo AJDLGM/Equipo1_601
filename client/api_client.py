@@ -177,6 +177,21 @@ class APIClient:
 
     # ── Logs ─────────────────────────────────────────────────
 
+    def get_pending_sign_requests(self):
+        result, err = self._req("GET", "/admin/sign-requests")
+        return [] if err else result
+
+    def download_sign_request_file(self, req_id):
+        import base64
+        result, err = self._req("GET", f"/admin/sign-requests/{req_id}/file")
+        if err:
+            return None, None
+        return result["filename"], base64.b64decode(result["file_data_b64"])
+
+    def complete_sign_request(self, req_id):
+        _, err = self._req("POST", f"/admin/sign-requests/{req_id}/complete", {})
+        return err is None
+
     def get_logs(self):
         result, err = self._req("GET", "/logs")
         if err:

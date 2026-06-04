@@ -44,7 +44,7 @@ def revoke_identity(username, reason, revoked_by):
     cur = con.cursor()
     cur.execute(
         "INSERT INTO revoked_certs (username, reason, revoked_at, revoked_by) VALUES (?, ?, ?, ?)",
-        (username, reason, datetime.now().isoformat(), revoked_by)
+        (username, reason, datetime.utcnow().isoformat(), revoked_by)
     )
     cur.execute("UPDATE users SET status='revoked' WHERE username=?", (username,))
     con.commit()
@@ -65,7 +65,7 @@ def deactivate_user(username, admin_user):
     if not cur.fetchone():
         cur.execute(
             "INSERT INTO revoked_certs (username, reason, revoked_at, revoked_by) VALUES (?, ?, ?, ?)",
-            (username, "Baja administrativa", datetime.now().isoformat(), admin_user)
+            (username, "Baja administrativa", datetime.utcnow().isoformat(), admin_user)
         )
     con.commit()
     con.close()
@@ -164,7 +164,7 @@ def create_sign_request(requester, filename, file_data: bytes):
     cur = con.cursor()
     cur.execute(
         "INSERT INTO sign_requests (requester, filename, file_data, requested_at) VALUES (?, ?, ?, ?)",
-        (requester, filename, file_data, datetime.now().isoformat()),
+        (requester, filename, file_data, datetime.utcnow().isoformat()),
     )
     con.commit()
     con.close()
@@ -196,7 +196,7 @@ def complete_sign_request(request_id, signed_by):
     cur = con.cursor()
     cur.execute(
         "UPDATE sign_requests SET status='firmado', signed_at=?, signed_by=? WHERE id=?",
-        (datetime.now().isoformat(), signed_by, request_id),
+        (datetime.utcnow().isoformat(), signed_by, request_id),
     )
     con.commit()
     con.close()

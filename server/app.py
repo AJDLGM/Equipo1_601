@@ -489,6 +489,48 @@ def advance_signing_route(req_id):
         return jsonify({"error": str(e)}), 500
 
 
+# ── Solicitudes de firma directa (flujo admin) ───────────────
+
+@app.route("/admin/sign-requests", methods=["GET"])
+def get_pending_sign_requests():
+    sess = _session()
+    if not sess:
+        return jsonify({"error": "No autenticado"}), 401
+    from db.admin_queries import get_pending_sign_requests as _get
+    rows = _get()
+    return jsonify([
+        {"id": r[0], "requester": r[1], "filename": r[2], "requested_at": r[3]}
+        for r in rows
+    ])
+
+
+@app.route("/admin/sign-requests/<int:req_id>/file", methods=["GET"])
+def get_sign_request_file(req_id):
+    import base64
+    sess = _session()
+    if not sess:
+        return jsonify({"error": "No autenticado"}), 401
+    from db.admin_queries import get_sign_request_file as _get_file
+    row = _get_file(req_id)
+    if not row or not row[1]:
+        return jsonify({"error": "Archivo no encontrado"}), 404
+    return jsonify({
+        "filename": row[0],
+        "file_data_b64": base64.b64encode(row[1]).decode(),
+    })
+
+
+@app.route("/admin/sign-requests/<int:req_id>/complete", methods=["POST"])
+def complete_sign_request_admin(req_id):
+    sess = _session()
+    if not sess:
+        return jsonify({"error": "No autenticado"}), 401
+    from db.admin_queries import complete_sign_request as _complete
+    _complete(req_id, sess["username"])
+    log_action(sess["username"], f"Solicitud de firma (directa) completada — ID: {req_id}")
+    return jsonify({"ok": True})
+
+
 # ── Log de cliente ────────────────────────────────────────────
 
 @app.route("/logs", methods=["POST"])
