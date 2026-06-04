@@ -470,6 +470,7 @@ def start_app():
             _ST = {
                 "pending_operativo":   "Pendiente (operativo)",
                 "pending_coordinador": "En proceso (coordinador)",
+                "pending_route":       "En ruta de firmas",
                 "completed":           "Completado",
             }
 
@@ -498,10 +499,10 @@ def start_app():
                 _my_store[0] = reqs
                 for r in reqs:
                     st   = _ST.get(r["status"], r["status"])
-                    date = _to_cdmx(r["created_at"], "%Y-%m-%d")
+                    date = _to_cdmx(r["created_at"])
                     _my_lb.insert(
                         tk.END,
-                        f"  {r['document_name'][:22]:<24} {st:<26} {date}")
+                        f"  {r['document_name'][:20]:<22} {st:<24} {date}")
 
             def _dl_signed():
                 sel = _my_lb.curselection()
