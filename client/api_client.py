@@ -146,6 +146,16 @@ class APIClient:
 
     # ── Claves y certificados ────────────────────────────────
 
+    def needs_key_download(self, username):
+        from urllib.parse import quote
+        result, err = self._req("GET", f"/users/{quote(username, safe='')}/keys/needs-download")
+        return not err and result.get("needs_download", False)
+
+    def clear_private_key(self, username):
+        from urllib.parse import quote
+        _, err = self._req("POST", f"/users/{quote(username, safe='')}/keys/clear-private", {})
+        return err is None
+
     def get_cert(self, username):
         result, err = self._req("GET", f"/users/{username}/cert")
         return None if err else result

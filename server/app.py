@@ -192,6 +192,33 @@ def get_public_key(username):
     return Response(row[0], mimetype="application/x-pem-file")
 
 
+@app.route("/users/<username>/keys/needs-download", methods=["GET"])
+def needs_key_download(username):
+    sess = _session()
+    if not sess or sess["username"] != username:
+        return jsonify({"error": "No autorizado"}), 403
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute("SELECT private_key FROM user_data WHERE username=?", (username,))
+    row = cur.fetchone()
+    con.close()
+    return jsonify({"needs_download": bool(row and row[0])})
+
+
+@app.route("/users/<username>/keys/clear-private", methods=["POST"])
+def clear_private_key(username):
+    sess = _session()
+    if not sess or sess["username"] != username:
+        return jsonify({"error": "No autorizado"}), 403
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute("UPDATE user_data SET private_key=NULL WHERE username=?", (username,))
+    con.commit()
+    con.close()
+    log_action(username, "Clave privada descargada y eliminada del servidor")
+    return jsonify({"ok": True})
+
+
 @app.route("/users/<username>/cert/verify", methods=["GET"])
 def verify_cert(username):
     if not _session():

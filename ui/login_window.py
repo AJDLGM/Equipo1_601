@@ -152,32 +152,18 @@ def _load_logo(max_width=300, max_height=120):
 
 # ── Sincronización de claves locales ─────────────────────────
 
-def _has_local_keys(username):
-    from config.paths import USERS_DIR
-    priv = os.path.join(USERS_DIR, username, "keys", f"{username}_private.pem")
-    return os.path.exists(priv)
-
-
-def _sync_local_keys(username, dirs, api):
-    priv = os.path.join(dirs["keys"], f"{username}_private.pem")
-    pub  = os.path.join(dirs["keys"], f"{username}_public.pem")
-    cert = os.path.join(dirs["certs"], f"{username}_cert.json")
-
-    if not os.path.exists(priv):
-        data = api.get_private_key(username)
-        if data:
-            with open(priv, "wb") as f:
-                f.write(data)
-
-    if not os.path.exists(pub):
-        data = api.get_public_key(username)
-        if data:
-            with open(pub, "wb") as f:
-                f.write(data)
-
+def _sync_cert_local(username, api):
+    """Sincroniza clave pública y certificado del servidor al directorio local (sin clave privada)."""
+    from config.paths import get_user_dir, create_directories
+    create_directories()
+    dirs = get_user_dir(username)
+    pub_data = api.get_public_key(username)
+    if pub_data:
+        with open(os.path.join(dirs["keys"], f"{username}_public.pem"), "wb") as f:
+            f.write(pub_data)
     cert_data = api.get_cert(username)
     if cert_data:
-        with open(cert, "w") as f:
+        with open(os.path.join(dirs["certs"], f"{username}_cert.json"), "w", encoding="utf-8") as f:
             json.dump(cert_data, f, indent=4)
 
 
@@ -185,6 +171,71 @@ def _sync_local_keys(username, dirs, api):
 
 def start_app():
     api = get_client()
+
+    def _mandatory_key_download(username):
+        """Diálogo obligatorio de descarga de clave privada. No puede cerrarse sin descargar."""
+        downloaded = [False]
+
+        dialog = tk.Toplevel()
+        dialog.title("Descarga de Clave Privada — Acción Requerida")
+        dialog.configure(bg=CARD)
+        dialog.resizable(False, False)
+        dialog.protocol("WM_DELETE_WINDOW", lambda: None)
+        sw, sh = dialog.winfo_screenwidth(), dialog.winfo_screenheight()
+        dialog.geometry(f"500x370+{(sw-500)//2}+{(sh-370)//2}")
+        dialog.grab_set()
+
+        hdr = tk.Frame(dialog, bg=PRIMARY, height=52)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+        tk.Label(hdr, text="  Descarga tu Clave Privada",
+                 font=(FONT, 12, "bold"), bg=PRIMARY, fg="white"
+                 ).pack(side="left", padx=16, pady=12)
+
+        body = tk.Frame(dialog, bg=CARD)
+        body.pack(fill="both", expand=True, padx=28, pady=20)
+
+        tk.Label(body,
+                 text=(
+                     "Tu cuenta fue activada y tus claves criptográficas están listas.\n\n"
+                     "Debes descargar tu Clave Privada AHORA.\n"
+                     "Al descargarla quedará eliminada del servidor por seguridad\n"
+                     "y NO podrás recuperarla después.\n\n"
+                     "Guarda el archivo .pem en un lugar seguro — lo necesitarás\n"
+                     "cada vez que firmes documentos."
+                 ),
+                 font=(FONT, 10), bg=CARD, fg=TEXT,
+                 justify="left", wraplength=440,
+                 ).pack(anchor="w", pady=(0, 20))
+
+        def do_download():
+            key_data = api.get_private_key(username)
+            if not key_data:
+                messagebox.showerror("Error",
+                                     "No se pudo obtener la clave privada del servidor.\n"
+                                     "Contacta al administrador.", parent=dialog)
+                return
+            dest = filedialog.askdirectory(
+                title="Selecciona dónde guardar tu clave privada", parent=dialog)
+            if not dest:
+                return
+            key_path = os.path.join(dest, f"{username}_private.pem")
+            with open(key_path, "wb") as f:
+                f.write(key_data)
+            api.clear_private_key(username)
+            messagebox.showinfo(
+                "Clave guardada correctamente",
+                f"Clave privada guardada en:\n{key_path}\n\n"
+                "Ha sido eliminada del servidor.\n"
+                "Guárdala en un lugar muy seguro.",
+                parent=dialog)
+            downloaded[0] = True
+            dialog.destroy()
+
+        _btn(body, "Descargar mi Clave Privada (.pem)", do_download,
+             bg=SUCCESS, full=True, pady=12)
+        dialog.wait_window()
+        return downloaded[0]
 
     def login():
         user     = entry_user.get().strip()
@@ -195,6 +246,11 @@ def start_app():
             return
         success, role = api.login(user, password)
         if success:
+            if api.needs_key_download(user):
+                if not _mandatory_key_download(user):
+                    api.token = None
+                    return
+            _sync_cert_local(user, api)
             open_dashboard(user, role)
         elif role == "pending":
             messagebox.showwarning(
@@ -309,22 +365,13 @@ def start_app():
 
         content = inner
 
-        # ── Verificación de claves locales ───────────────────
-        def _check_keys(parent_window):
-            if _has_local_keys(username):
-                return True
-            from config.paths import get_user_dir as _get_dir
-            d = _get_user_dir(username)
-            _sync_local_keys(username, d, api)
-            if _has_local_keys(username):
-                return True
-            messagebox.showerror(
-                "Claves no encontradas",
-                "No se encontraron tus claves locales.\n"
-                "Descárgalas desde 'Descargar Certificado y Claves'.",
+        def _ask_for_private_key(parent_window):
+            """Solicita al usuario que seleccione su archivo de clave privada."""
+            return filedialog.askopenfilename(
                 parent=parent_window,
-            )
-            return False
+                title="Selecciona tu Clave Privada (.pem)",
+                filetypes=[("Clave privada PEM", "*.pem"), ("Todos los archivos", "*.*")],
+            ) or None
 
         def _get_user_dir(uname):
             from config.paths import get_user_dir as _gud
@@ -337,57 +384,6 @@ def start_app():
                  lambda: show_certificate(username),
                  bg=PRIMARY, full=True)
 
-            def download_credentials():
-                import pyzipper
-                from config.paths import get_user_dir as _get_dir
-
-                pwd = simpledialog.askstring(
-                    "Confirmar identidad",
-                    "Ingresa tu contraseña para descargar las credenciales:",
-                    show="*", parent=dash)
-                if not pwd:
-                    return
-
-                if not api.verify_password(username, pwd):
-                    messagebox.showerror("Contraseña incorrecta",
-                                         "La contraseña ingresada no es válida.", parent=dash)
-                    return
-
-                d = _get_dir(username)
-                _sync_local_keys(username, d, api)
-
-                archivos = [
-                    (os.path.join(d["keys"],  f"{username}_private.pem"), f"{username}_private.pem"),
-                    (os.path.join(d["keys"],  f"{username}_public.pem"),  f"{username}_public.pem"),
-                    (os.path.join(d["certs"], f"{username}_cert.json"),   f"{username}_cert.json"),
-                ]
-                faltantes = [n for p, n in archivos if not os.path.exists(p)]
-                if faltantes:
-                    messagebox.showerror(
-                        "Archivos no encontrados",
-                        "No se encontraron:\n" + "\n".join(faltantes), parent=dash)
-                    return
-
-                dest = filedialog.askdirectory(
-                    title="Selecciona carpeta de destino", parent=dash)
-                if not dest:
-                    return
-
-                zip_path = os.path.join(dest, f"{username}_credenciales.zip")
-                with pyzipper.AESZipFile(zip_path, "w",
-                                         compression=pyzipper.ZIP_DEFLATED,
-                                         encryption=pyzipper.WZ_AES) as zf:
-                    zf.setpassword(pwd.encode())
-                    for src, name in archivos:
-                        zf.write(src, name)
-
-                messagebox.showinfo(
-                    "Descarga completa",
-                    f"ZIP cifrado guardado en:\n{zip_path}\n\n"
-                    "Usa tu contraseña de cuenta para abrirlo.", parent=dash)
-
-            _btn(sec, "Descargar Certificado y Claves",
-                 download_credentials, bg=NEUTRAL, full=True)
 
         # SOLICITAR FIRMA — solo externo
         if role == "externo":
@@ -555,10 +551,11 @@ def start_app():
                 )
                 if not path:
                     return
-                if not _check_keys(dash):
+                key_path = _ask_for_private_key(dash)
+                if not key_path:
                     return
                 try:
-                    signed_path = sign_file(username, path)
+                    signed_path = sign_file(username, path, private_key_path=key_path)
                     api.log_action(f"Firma de archivo: {os.path.basename(path)}")
                     messagebox.showinfo(
                         "Archivo firmado",
@@ -809,7 +806,8 @@ def start_app():
                     return
                 req = _cd_store[0][sel[0]]
 
-                if not _check_keys(dash):
+                key_path = _ask_for_private_key(dash)
+                if not key_path:
                     return
 
                 doc_name, doc_bytes = api.download_request_document(req["id"])
@@ -830,7 +828,7 @@ def start_app():
 
                     if is_route:
                         from crypto.signature import sign_for_route
-                        signed_path, signed_bytes = sign_for_route(username, tmp_path)
+                        signed_path, signed_bytes = sign_for_route(username, tmp_path, private_key_path=key_path)
                         signed_name = os.path.basename(signed_path)
                         result = api.advance_route_step(req["id"], signed_name, signed_bytes)
                         if result:
@@ -851,7 +849,7 @@ def start_app():
                                                  "No se pudo registrar la firma en la ruta.",
                                                  parent=dash)
                     else:
-                        signed_path = sign_file(username, tmp_path)
+                        signed_path = sign_file(username, tmp_path, private_key_path=key_path)
                         with open(signed_path, "rb") as f:
                             signed_bytes = f.read()
                         signed_name = os.path.basename(signed_path)
@@ -1076,7 +1074,8 @@ def start_app():
                                                "Selecciona una solicitud de la lista.", parent=panel)
                         return
                     req = _requests[sel[0]]
-                    if not _check_keys(panel):
+                    key_path = _ask_for_private_key(panel)
+                    if not key_path:
                         return
 
                     fname, file_bytes = api.download_sign_request_file(req["id"])
@@ -1092,7 +1091,7 @@ def start_app():
                         tmp_path = tmp.name
 
                     try:
-                        signed_path = sign_file(username, tmp_path)
+                        signed_path = sign_file(username, tmp_path, private_key_path=key_path)
                     except Exception as e:
                         os.unlink(tmp_path)
                         messagebox.showerror("Error al firmar",

@@ -494,7 +494,7 @@ def _verify_container(file_path):
 _MSIGNED_EXT = ".msigned"
 
 
-def sign_for_route(username, file_path):
+def sign_for_route(username, file_path, private_key_path=None):
     """
     Firma un documento dentro de una ruta multi-firma.
 
@@ -504,7 +504,11 @@ def sign_for_route(username, file_path):
 
     Devuelve (output_path, output_bytes).
     """
-    private_key = _load_private_key(username)
+    if private_key_path:
+        with open(private_key_path, "rb") as f:
+            private_key = serialization.load_pem_private_key(f.read(), password=None)
+    else:
+        private_key = _load_private_key(username)
     certificate = _load_certificate(username)
     ext = os.path.splitext(file_path)[1].lower()
 
@@ -711,8 +715,12 @@ def verify_route_file(file_path):
 
 # ── API pública ───────────────────────────────────────────────────────────────
 
-def sign_file(username, file_path):
-    private_key = _load_private_key(username)
+def sign_file(username, file_path, private_key_path=None):
+    if private_key_path:
+        with open(private_key_path, "rb") as f:
+            private_key = serialization.load_pem_private_key(f.read(), password=None)
+    else:
+        private_key = _load_private_key(username)
     certificate = _load_certificate(username)
     ext = os.path.splitext(file_path)[1].lower()
     if ext in (".docx", ".doc"):
