@@ -112,6 +112,17 @@ def get_pending_users():
     return users
 
 
+def reject_pending_user(username, admin_username):
+    con = get_connection()
+    cur = con.cursor()
+    cur.execute("DELETE FROM users WHERE username=? AND status='pending'", (username,))
+    con.commit()
+    con.close()
+
+    from db.logs import log_action
+    log_action(admin_username, f"Solicitud de cuenta rechazada: {username}")
+
+
 def approve_user(username, admin_username, role="user"):
     from crypto.keys import generate_keys
     from crypto.certificate import create_certificate

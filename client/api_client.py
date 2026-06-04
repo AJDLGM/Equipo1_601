@@ -106,8 +106,14 @@ class APIClient:
             return []
         return [(u["username"], u["role"]) for u in result]
 
+    def reject_user(self, username):
+        from urllib.parse import quote
+        _, err = self._req("POST", f"/users/{quote(username, safe='')}/reject", {})
+        return err is None
+
     def approve_user(self, username, admin_username, role):
-        _, err = self._req("POST", f"/users/{username}/approve",
+        from urllib.parse import quote
+        _, err = self._req("POST", f"/users/{quote(username, safe='')}/approve",
                            {"role": role, "admin_username": admin_username})
         return err is None
 

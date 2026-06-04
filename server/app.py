@@ -76,6 +76,16 @@ def pending_users():
     return jsonify([{"username": u, "role": r} for u, r in get_pending_users()])
 
 
+@app.route("/users/<username>/reject", methods=["POST"])
+def reject(username):
+    sess = _session()
+    if not sess:
+        return jsonify({"error": "No autenticado"}), 401
+    from db.admin_queries import reject_pending_user
+    reject_pending_user(username, sess["username"])
+    return jsonify({"ok": True})
+
+
 @app.route("/users/<username>/approve", methods=["POST"])
 def approve(username):
     sess = _session()

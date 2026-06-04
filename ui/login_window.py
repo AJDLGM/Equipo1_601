@@ -901,7 +901,7 @@ def start_app():
                     messagebox.showwarning("Sin selección",
                                            "Selecciona una cuenta para aprobar.", parent=dash)
                     return
-                uname = pending_lb.get(sel[0]).strip().split()[0]
+                uname = pending_lb.get(sel[0]).strip().rsplit("[", 1)[0].strip()
 
                 role_dialog = tk.Toplevel(dash)
                 role_dialog.title("Asignar Rol")
@@ -936,6 +936,31 @@ def start_app():
 
                 role_dialog.wait_window()
 
+            def do_reject():
+                sel = pending_lb.curselection()
+                if not sel:
+                    messagebox.showwarning("Sin selección",
+                                           "Selecciona una cuenta para rechazar.", parent=dash)
+                    return
+                uname = pending_lb.get(sel[0]).strip().rsplit("[", 1)[0].strip()
+                if messagebox.askyesno(
+                    "Confirmar rechazo",
+                    f"¿Rechazar la solicitud de '{uname}'?\n\n"
+                    "La cuenta será eliminada del sistema.",
+                    parent=dash, icon="warning",
+                ):
+                    ok = api.reject_user(uname)
+                    if ok:
+                        messagebox.showinfo(
+                            "Solicitud rechazada",
+                            f"La solicitud de '{uname}' fue rechazada.", parent=dash)
+                    else:
+                        messagebox.showerror(
+                            "Error",
+                            f"No se pudo rechazar la solicitud de '{uname}'.\n"
+                            "Verifica que el servidor esté actualizado.", parent=dash)
+                    refresh_pending()
+
             def _auto_refresh_pending():
                 try:
                     refresh_pending()
@@ -944,8 +969,12 @@ def start_app():
                 _pending_job[0] = dash.after(10000, _auto_refresh_pending)
 
             _auto_refresh_pending()
-            _btn(sec_pending, "Aprobar cuenta seleccionada", do_approve,
-                 bg=SUCCESS, full=True, pady=9)
+            _row_p = tk.Frame(sec_pending, bg=CARD)
+            _row_p.pack(fill="x")
+            _btn(_row_p, "Aprobar cuenta", do_approve,
+                 bg=SUCCESS, pady=9).pack(side="left", fill="x", expand=True, padx=(0, 4))
+            _btn(_row_p, "Rechazar solicitud", do_reject,
+                 bg=DANGER, pady=9).pack(side="left", fill="x", expand=True)
 
         # ADMIN — Solicitudes de firma pendientes
         if role == "admin":
@@ -1139,7 +1168,7 @@ def start_app():
     root.title("Casa Monarca — Sistema de Identidad Digital")
     root.configure(bg=BG)
     root.resizable(False, False)
-    _center(root, 420, 560)
+    _center(root, 420, 600)
 
     # ── Área del logo ─────────────────────────────────────────
     logo_frame = tk.Frame(root, bg=CARD, height=150)
