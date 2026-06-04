@@ -711,9 +711,9 @@ def start_app():
             _btn(_row_op, "Enviar a ruta de firmas", _forward_route, bg=PRIMARY
                  ).pack(side="left", padx=(0, 6), pady=2)
             _btn(_row_op, "Canalizar manualmente", _forward_manual, bg=NEUTRAL
-                 ).pack(side="left", padx=(0, 6), pady=2)
-            _btn(_row_op, "Eliminar solicitud", _delete_op, bg=DANGER
                  ).pack(side="left", pady=2)
+            _btn(sec_op, "Eliminar solicitud seleccionada", _delete_op,
+                 bg=DANGER, full=True, pady=8)
 
         # AUTORIZAR
         if has_permission(role, "authorize"):
