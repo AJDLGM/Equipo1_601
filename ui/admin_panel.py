@@ -345,7 +345,7 @@ def _build_revocacion(parent, admin_username, on_revoke=None):
                     background=DIVIDER, foreground=SUBTEXT, relief="flat")
     style.map("CRL.Treeview", background=[("selected", "#FEE8D5")])
 
-    cols = ("Usuario", "Motivo", "Fecha (UTC)", "Revocado por")
+    cols = ("Usuario", "Motivo", "Fecha (CDMX)", "Revocado por")
     tree = ttk.Treeview(bot_body, columns=cols, show="headings",
                         height=5, style="CRL.Treeview")
     for col, w in zip(cols, (130, 200, 155, 130)):
