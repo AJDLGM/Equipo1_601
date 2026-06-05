@@ -7,6 +7,11 @@ import base64
 import io
 import shutil
 from datetime import datetime
+try:
+    from zoneinfo import ZoneInfo as _ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo as _ZoneInfo
+_CDMX = _ZoneInfo("America/Mexico_City")
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from config.paths import get_user_dir
@@ -81,7 +86,7 @@ def _build_sig_meta(username, file_path, file_hash, raw_sig, certificate):
         "hash_sha256":       file_hash,
         "signature":         base64.b64encode(raw_sig).decode(),
         "certificate":       certificate,
-        "signed_at":         datetime.utcnow().isoformat() + "Z",
+        "signed_at":         datetime.now(_CDMX).strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
 
@@ -563,7 +568,7 @@ def _sign_docx_route_step(username, file_path, private_key, certificate):
         "hash_chain":        hash_chain,
         "signature":         base64.b64encode(raw_sig).decode(),
         "certificate":       certificate,
-        "signed_at":         datetime.utcnow().isoformat() + "Z",
+        "signed_at":         datetime.now(_CDMX).strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
     # Ruta de salida: siempre {original}_firmado.docx
@@ -613,7 +618,7 @@ def _sign_msigned_route_step(username, file_path, private_key, certificate):
     new_sig = {
         "order":       len(prev_sigs) + 1,
         "signer":      username,
-        "signed_at":   datetime.utcnow().isoformat() + "Z",
+        "signed_at":   datetime.now(_CDMX).strftime("%Y-%m-%dT%H:%M:%S"),
         "hash_sha256": hash_original,
         "hash_chain":  hash_chain,
         "signature":   base64.b64encode(raw_sig).decode(),
