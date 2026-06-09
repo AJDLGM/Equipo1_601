@@ -1,249 +1,342 @@
-# Sistema de Gestión de Identidades Digitales
+# Sistema de Gestión de Identidades Digitales (Casa Monarca)
 
-Proyecto desarrollado para la materia **Uso de Álgebras Modernas para Seguridad y Criptografía (Gpo 601)**.
+## Descripción General
 
-Este proyecto consiste en el desarrollo de una aplicación de escritorio en Python que implementa un **sistema de gestión de identidades digitales**, simulando el funcionamiento básico de una **Infraestructura de Clave Pública (PKI)**.
+El Sistema de Gestión de Identidades Digitales (Casa Monarca) es una aplicación cliente-servidor que simula una Infraestructura de Clave Pública (PKI) para la administración de identidades digitales, certificados electrónicos y firma digital de documentos.
 
-El sistema permite registrar usuarios, generar claves criptográficas, emitir certificados digitales, firmar documentos y controlar el acceso a funcionalidades mediante distintos niveles de autorización.
+El sistema permite gestionar usuarios, generar material criptográfico, firmar documentos electrónicamente, verificar firmas digitales y administrar el ciclo de vida completo de certificados digitales mediante un esquema de control de acceso basado en roles.
 
+Este proyecto fue desarrollado como parte de la materia **Uso de Álgebras Modernas para Seguridad y Criptografía**.
 
-# Autores
+---
 
-* Alicia Josefina de la Garza Montelongo — A01198742
-* Gisel Regina Benítez Calvillo — A00228137
-* Lillianne Sepúlveda Cuevas — A00839109
-* Axel Xavier Olivar Lozano — A01286176
-* Jorge Eduardo Avila Montoya — A01410275
+## Autores
 
+| Nombre                                 | Matrícula |
+| -------------------------------------- | --------- |
+| Alicia Josefina de la Garza Montelongo | A01198742 |
+| Gisel Regina Benítez Calvillo          | A00228137 |
+| Lillianne Sepúlveda Cuevas             | A00839109 |
+| Axel Xavier Olivar Lozano              | A01286176 |
+| Jorge Eduardo Avila Montoya            | A01410275 |
 
-# Descripción del sistema
+---
 
-El sistema implementa diferentes mecanismos de seguridad informática basados en criptografía moderna para gestionar identidades digitales dentro de una organización.
+## Objetivo
 
-Entre sus funcionalidades principales se encuentran:
+Desarrollar un sistema que simule el funcionamiento básico de una Infraestructura de Clave Pública (PKI), permitiendo:
 
-* Registro de usuarios
-* Generación automática de claves criptográficas
-* Emisión de certificados digitales
-* Firma digital de mensajes y archivos
-* Verificación de firmas digitales
-* Autenticación con múltiples factores (OTP)
-* Control de acceso basado en roles
-* Registro de actividades del sistema (logs)
-* Panel de administración para gestión de usuarios
+* Gestión de identidades digitales.
+* Generación de claves criptográficas.
+* Emisión de certificados digitales.
+* Firma electrónica de documentos.
+* Verificación de autenticidad e integridad.
+* Revocación de certificados.
+* Control de acceso mediante roles.
+* Auditoría de actividades del sistema.
 
-El sistema fue desarrollado en **Python** utilizando una arquitectura modular que separa la interfaz gráfica, la lógica del sistema, los módulos criptográficos y la base de datos.
+---
 
+## Funcionalidades
 
-# Tecnologías utilizadas
+### Gestión de usuarios
 
-El proyecto utiliza diversas herramientas y bibliotecas del ecosistema de Python.
+* Registro de usuarios mediante autoservicio.
+* Aprobación o rechazo de solicitudes por parte del administrador.
+* Alta directa de usuarios.
+* Revocación de certificados.
+* Baja de identidades.
+* Consulta de usuarios activos y pendientes.
 
-Principales tecnologías:
+### Criptografía
 
-* **Python 3**
-* **Tkinter** — interfaz gráfica
-* **SQLite** — base de datos local
-* **Cryptography Library** — operaciones criptográficas
-* **Hashlib** — funciones hash
-* **PBKDF2** — almacenamiento seguro de contraseñas
-
-
-# Algoritmos criptográficos utilizados
-
-El sistema utiliza algoritmos criptográficos modernos para garantizar la seguridad de la información.
-
-### RSA (2048 bits)
-
-Se utiliza para la generación de pares de claves públicas y privadas. Cada usuario registrado recibe automáticamente un par de claves RSA que se utilizan para generar y verificar firmas digitales.
-
-### SHA-256
-
-Se utiliza como función hash para garantizar la integridad de la información y para el almacenamiento seguro de contraseñas mediante el algoritmo PBKDF2.
-
-### RSA-PSS
-
-El esquema de padding **PSS (Probabilistic Signature Scheme)** se utiliza al generar firmas digitales con RSA para incrementar la seguridad del sistema y evitar ataques criptográficos.
-
-
-# Arquitectura del sistema
-
-El sistema está organizado en distintos módulos que separan responsabilidades dentro del programa.
-
-```
-Proyecto
-│
-├── auth
-│   ├── auth.py
-│   ├── mfa.py
-│   └── permissions.py
-│
-├── crypto
-│   ├── keys.py
-│   ├── signature.py
-│   └── certificate.py
-│
-├── db
-│   ├── database.py
-│   ├── logs.py
-│   └── admin_queries.py
-│
-├── ui
-│   └── login_window.py
-│
-├── config
-│   └── paths.py
-│
-├── data
-│   └── users
-│
-└── main.py
-```
-
-
-# Estructura de almacenamiento
-
-Cada usuario tiene su propio directorio dentro del sistema para almacenar sus recursos criptográficos.
-
-```
-data/
- └── users/
-     └── username/
-         ├── keys/
-         │   ├── username_private.pem
-         │   └── username_public.pem
-         │
-         ├── certificates/
-         │   └── username_cert.json
-         │
-         └── signatures/
-             └── signature_timestamp.sig
-```
-
-Esto permite mantener una estructura organizada y facilita la gestión de identidades digitales.
-
-
-# Control de acceso
-
-El sistema implementa **Control de Acceso Basado en Roles (RBAC)**.
-
-Se definieron cuatro niveles de autorización:
-
-| Nivel   | Rol                | Permisos                                  |
-| ------- | ------------------ | ----------------------------------------- |
-| Nivel 4 | Personal externo   | Consultar información                     |
-| Nivel 3 | Personal operativo | Consultar y editar información            |
-| Nivel 2 | Coordinadores      | Consultar, editar y autorizar información |
-| Nivel 1 | Administradores    | Acceso completo al sistema                |
-
-Los administradores cuentan además con funcionalidades adicionales como:
-
-* Gestión de usuarios
-* Cambio de roles
-* Visualización de logs del sistema
-
-
-
-# Funcionalidades principales
-
-### Registro de usuarios
-
-Permite registrar nuevas identidades digitales dentro del sistema. Durante el registro se generan automáticamente:
-
-* Par de claves RSA
-* Certificado digital del usuario
-
-
-
-### Autenticación segura
-
-El sistema implementa autenticación en dos pasos:
-
-1. Contraseña protegida con PBKDF2 + SHA256
-2. Código OTP (One Time Password)
-
-
+* Generación automática de claves RSA de 2048 bits.
+* Emisión de certificados digitales.
+* Verificación de certificados.
+* Gestión de claves públicas y privadas.
 
 ### Firma digital
 
-Los usuarios pueden firmar digitalmente:
+* Firma de documentos DOCX.
+* Firma de documentos PDF.
+* Firma de archivos genéricos mediante contenedores seguros.
+* Verificación de integridad y autenticidad.
+* Firma múltiple mediante rutas de aprobación.
 
-* Mensajes de texto
-* Archivos
+### Control de acceso
 
-Las firmas se generan utilizando **RSA + PSS + SHA256**.
+El sistema implementa un modelo RBAC (Role-Based Access Control) con cuatro niveles:
 
+| Rol           | Descripción                                       |
+| ------------- | ------------------------------------------------- |
+| Externo       | Solicita firmas y consulta documentos             |
+| Operativo     | Gestiona y canaliza solicitudes                   |
+| Coordinador   | Firma documentos dentro de una ruta de aprobación |
+| Administrador | Gestiona usuarios, certificados y configuración   |
 
+### Auditoría
 
-### Verificación de firmas
+* Registro de actividades del sistema.
+* Consulta de logs.
+* Seguimiento de acciones realizadas por cada usuario.
 
-El sistema permite verificar la autenticidad de mensajes o archivos firmados mediante la clave pública del usuario.
+---
 
+## Arquitectura
 
+El sistema sigue una arquitectura cliente-servidor.
 
-### Certificados digitales
+### Cliente
 
-Cada usuario posee un certificado digital que contiene:
+Aplicación de escritorio desarrollada con Tkinter.
 
-* Identidad del usuario
-* Fecha de emisión
-* Fecha de expiración
-* Hash de verificación
+Responsabilidades:
 
+* Inicio de sesión.
+* Gestión de usuarios.
+* Firma local de documentos.
+* Verificación de documentos.
+* Interacción con la API REST.
 
+### Servidor
 
-### Registro de actividades
+API REST desarrollada con Flask.
 
-Todas las acciones importantes del sistema se almacenan en una base de datos SQLite para fines de auditoría.
+Responsabilidades:
 
+* Autenticación.
+* Gestión de usuarios.
+* Emisión de certificados.
+* Administración de solicitudes.
+* Persistencia de información.
 
+### Base de datos
 
-# Instalación
+SQLite es utilizada para almacenar:
 
-1. Clonar el repositorio
+* Usuarios.
+* Certificados.
+* Claves públicas.
+* Solicitudes de firma.
+* Rutas de firma.
+* Registros de auditoría.
 
+---
+
+## Tecnologías Utilizadas
+
+| Tecnología   | Uso                             |
+| ------------ | ------------------------------- |
+| Python 3     | Lenguaje principal              |
+| Flask        | API REST                        |
+| Tkinter      | Interfaz gráfica                |
+| SQLite       | Base de datos                   |
+| Cryptography | Operaciones criptográficas      |
+| python-docx  | Manipulación de documentos Word |
+| pypdf        | Manipulación de documentos PDF  |
+| ReportLab    | Generación de PDFs              |
+| Requests     | Comunicación HTTP               |
+| Pillow       | Manejo de imágenes              |
+| PyInstaller  | Generación del ejecutable       |
+| Railway      | Despliegue del servidor         |
+
+---
+
+## Estructura del Proyecto
+
+```text
+Equipo1_601/
+│
+├── auth/
+│   ├── auth.py
+│   ├── permissions.py
+│   └── mfa.py
+│
+├── crypto/
+│   ├── keys.py
+│   ├── certificate.py
+│   └── signature.py
+│
+├── db/
+│   ├── database.py
+│   ├── admin_queries.py
+│   ├── signing_requests.py
+│   ├── firma_route.py
+│   └── logs.py
+│
+├── server/
+│   ├── app.py
+│   └── run_server.bat
+│
+├── client/
+│   └── api_client.py
+│
+├── ui/
+│   ├── login_window.py
+│   ├── admin_panel.py
+│   └── logo_data.py
+│
+├── config/
+│   ├── paths.py
+│   └── server_config.py
+│
+├── assets/
+├── docs/
+│
+├── main.py
+├── wsgi.py
+├── Procfile
+├── requirements.txt
+└── SistemaIdentidad.spec
 ```
+
+---
+
+## Instalación
+
+### Clonar el repositorio
+
+```bash
 git clone https://github.com/usuario/repositorio.git
+cd repositorio
 ```
 
-2. Instalar dependencias
+### Crear entorno virtual
 
-```
-pip install cryptography
+```bash
+python -m venv venv
 ```
 
-3. Ejecutar el sistema
+### Activar entorno virtual
 
+Windows:
+
+```bash
+venv\Scripts\activate
 ```
+
+Linux/macOS:
+
+```bash
+source venv/bin/activate
+```
+
+### Instalar dependencias
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## Ejecución del Servidor
+
+```bash
+python server/app.py
+```
+
+o
+
+```bash
+python wsgi.py
+```
+
+El servidor iniciará por defecto en:
+
+```text
+http://localhost:5000
+```
+
+---
+
+## Ejecución del Cliente
+
+```bash
 python main.py
 ```
 
 ---
 
-# Limitaciones del proyecto
+## Compilación del Cliente
 
-Este sistema es una **implementación académica** y presenta algunas limitaciones:
+Para generar el ejecutable:
 
-* No implementa el estándar completo X.509
-* No incluye infraestructura de certificación real
-* No se integra con servicios externos
-* No se implementa infraestructura en la nube
+```bash
+build.bat
+```
 
----
+o
 
-# Trabajo futuro
-
-Algunas mejoras posibles para el sistema incluyen:
-
-* Implementación de certificados X.509 completos
-* Integración con servicios en la nube
-* Mejora de la interfaz gráfica
-* Implementación de revocación de certificados
-* Integración con sistemas de autenticación externos
+```bash
+pyinstaller SistemaIdentidad.spec
+```
 
 ---
 
-# Licencia
+## Flujo General del Sistema
 
-Este proyecto fue desarrollado con fines académicos para la materia **Uso de Álgebras Modernas para Seguridad y Criptografía**.
+1. El usuario crea una cuenta.
+2. El administrador aprueba la solicitud.
+3. Se generan automáticamente las claves RSA y el certificado digital.
+4. El usuario descarga su clave privada.
+5. El usuario puede solicitar firmas o participar en procesos de aprobación según su rol.
+6. Los coordinadores firman los documentos.
+7. El sistema verifica la integridad y autenticidad de las firmas.
+8. El documento firmado queda disponible para descarga.
 
+---
+
+## Seguridad Implementada
+
+### Autenticación
+
+* PBKDF2-HMAC-SHA256.
+* 200,000 iteraciones.
+* Salt aleatorio por usuario.
+
+### Firma Digital
+
+* RSA de 2048 bits.
+* RSA-PSS.
+* SHA-256.
+
+### Certificados
+
+* Certificados digitales firmados.
+* Lista de certificados revocados (CRL).
+
+### Sesiones
+
+* Tokens de autenticación.
+* Control de acceso basado en roles.
+
+---
+
+## Limitaciones Actuales
+
+* No implementa certificados X.509 completos.
+* Las sesiones se almacenan en memoria.
+* Las claves privadas no están protegidas mediante passphrase.
+* No existe recuperación de contraseña.
+* El MFA aún no está integrado al flujo de autenticación.
+* No se cuenta con una suite formal de pruebas automatizadas.
+
+---
+
+## Trabajo Futuro
+
+* Implementación de certificados X.509.
+* Integración de autenticación multifactor.
+* Uso de JWT para sesiones.
+* Cifrado de claves privadas mediante passphrase.
+* Automatización de pruebas.
+* Mejoras en la autorización a nivel de API.
+* Optimización de la gestión de archivos y documentos.
+
+---
+
+## Licencia
+
+Este proyecto fue desarrollado con fines académicos para la materia Uso de Álgebras Modernas para Seguridad y Criptografía del Tecnológico de Monterrey.
+
+Su uso, modificación y distribución deben realizarse respetando los lineamientos establecidos por los autores y la institución.
